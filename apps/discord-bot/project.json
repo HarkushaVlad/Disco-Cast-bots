@@ -1,0 +1,68 @@
+{
+  "name": "discord-bot",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/discord-bot/src",
+  "projectType": "application",
+  "tags": [],
+  "targets": {
+    "build": {
+      "executor": "@nx/esbuild:esbuild",
+      "outputs": [
+        "{options.outputPath}"
+      ],
+      "defaultConfiguration": "production",
+      "options": {
+        "platform": "node",
+        "outputPath": "dist/apps/discord-bot",
+        "format": [
+          "cjs"
+        ],
+        "bundle": false,
+        "main": "apps/discord-bot/src/main.ts",
+        "tsConfig": "apps/discord-bot/tsconfig.app.json",
+        "assets": [
+          "apps/discord-bot/src/assets"
+        ],
+        "generatePackageJson": true,
+        "esbuildOptions": {
+          "sourcemap": true,
+          "outExtension": {
+            ".js": ".js"
+          }
+        },
+        "port": 3001
+      },
+      "configurations": {
+        "development": {},
+        "production": {
+          "esbuildOptions": {
+            "sourcemap": false,
+            "outExtension": {
+              ".js": ".js"
+            }
+          }
+        }
+      }
+    },
+    "serve": {
+      "executor": "@nx/js:node",
+      "defaultConfiguration": "development",
+      "dependsOn": [
+        "build"
+      ],
+      "options": {
+        "buildTarget": "discord-bot:build",
+        "runBuildTargetDependencies": false,
+        "port": 3001
+      },
+      "configurations": {
+        "development": {
+          "buildTarget": "discord-bot:build:development"
+        },
+        "production": {
+          "buildTarget": "discord-bot:build:production"
+        }
+      }
+    }
+  }
+}
