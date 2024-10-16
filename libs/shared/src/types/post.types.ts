@@ -2,7 +2,8 @@ export type Post =
   | 'announcement'
   | 'releaseNotes'
   | 'gameUpdates'
-  | 'liveEvents';
+  | 'liveEvents'
+  | 'other';
 
 export interface PostPayload {
   text: string;
