@@ -54,8 +54,8 @@ export const convertDiscordMarkdownToHTML = (message: Message): string => {
     // Replace backtick-enclosed text (`text`) with code formatting (<code>text</code>)
     .replace(/(?<!\\)(`+)(.*?)\1/g, '<code>$2</code>')
 
-    // Remove single backslashes (\) if they are not escaped and not followed by another backslash
-    .replace(/(?<!\\)\\(?!\\)/g, '')
+    // Remove single backslashes (\) if they are not escaped, followed by [_*~] and not followed by another backslash
+    .replace(/(?<!\\)\\(?!\\)(?=[_*~])/g, '')
 
     // Replace double backslashes (\\) with a single backslash (\)
     .replace(/\\\\/g, '\\');
