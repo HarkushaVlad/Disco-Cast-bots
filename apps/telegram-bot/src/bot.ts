@@ -10,7 +10,9 @@ export const startBot = () => {
 
 export const sendMessage = async (text: string) => {
   try {
-    await bot.telegram.sendMessage(config.telegramChannelId, text);
+    await bot.telegram.sendMessage(config.telegramChannelId, text, {
+      parse_mode: 'HTML',
+    });
     console.log('Post was successfully posted');
   } catch (error) {
     console.error('Error posting post:', error);

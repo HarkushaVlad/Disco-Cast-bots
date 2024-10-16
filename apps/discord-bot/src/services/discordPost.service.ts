@@ -3,19 +3,21 @@ import { Message } from 'discord.js';
 import { config } from '@sot-news-bot/shared';
 import { PostPayload } from '../../../../libs/shared/src/types/post.types';
 import { channelTypeMap } from '../../../../libs/shared/src/constants/constants';
+import { convertDiscordMarkdownToHTML } from '../../../../libs/shared/src/utils/filters';
 
 export class DiscordPostService {
-  private message: Message;
+  private readonly message: Message;
 
   constructor(message: Message) {
     this.message = message;
   }
 
   async sendPost() {
+    const filteredText = convertDiscordMarkdownToHTML(this.message);
     const media = this.message.attachments.map((attachment) => attachment.url);
 
     const post: PostPayload = {
-      text: this.message.content,
+      text: filteredText,
       media,
       postType: channelTypeMap.get(this.message.channelId) ?? 'other',
     };
