@@ -3,19 +3,26 @@ import {
   PostPayload,
 } from '../../../../libs/shared/src/types/post.types';
 import { TgBot } from '../bot';
-import { MediaGroup } from 'telegraf/typings/telegram-types';
+import { ExtraReplyMessage, MediaGroup } from 'telegraf/typings/telegram-types';
 import axios from 'axios';
-import { SEND_ORDER_MEDIAS } from '../../../../libs/shared/src/constants/constants';
+import {
+  MAX_CHARACTERS_TG_CAPTION,
+  MAX_CHARACTERS_TG_TEXT,
+  SEND_ORDER_MEDIAS,
+} from '../../../../libs/shared/src/constants/constants';
+import { isNoLinks } from '../../../../libs/shared/src/utils/filters';
 
 export class TelegramPostService {
   private readonly bot: TgBot;
   private readonly telegramChannelId: string;
   private readonly post: PostPayload;
+  private readonly isNoLinks: boolean;
 
   constructor(bot: TgBot, telegramChannelId: string, post: PostPayload) {
     this.bot = bot;
     this.telegramChannelId = telegramChannelId;
     this.post = post;
+    this.isNoLinks = isNoLinks(post.text);
   }
 
   async sendPost() {
@@ -26,18 +33,21 @@ export class TelegramPostService {
     if (hasMedia) {
       await this.sendMedias(this.telegramChannelId, this.post);
     } else {
-      await this.sendTextMessage(this.telegramChannelId, this.post);
+      await this.sendTextMessage(this.telegramChannelId, this.post.text);
     }
   }
 
   private sendTextMessage = async (
     telegramChannelId: string,
-    post: PostPayload
+    text: string,
+    isTurnOffLinkPreview?: boolean
   ) => {
     try {
-      await this.bot.telegram.sendMessage(telegramChannelId, post.text, {
-        parse_mode: 'HTML',
-      });
+      await this.bot.telegram.sendMessage(
+        telegramChannelId,
+        this.getMessageText(text, true),
+        this.getMessageOptions(isTurnOffLinkPreview)
+      );
       console.log('Text message was successfully sent\n');
     } catch (error) {
       console.error('Error sending text message:', error);
@@ -104,12 +114,13 @@ export class TelegramPostService {
     const photoMediaGroup: MediaGroup = urls.map((url, index) => ({
       type: 'photo',
       media: url,
-      caption: index === 0 ? text : undefined,
-      parse_mode: 'HTML',
+      caption: index === 0 ? this.getMessageText(text) : this.getMessageSign(),
+      ...this.getMessageOptions(),
     }));
 
     try {
       await this.sendMediaGroup(telegramChannelId, photoMediaGroup);
+      console.log('Photo group  was successfully sent');
     } catch (error) {
       console.error('Photo group was not sent:', error);
     }
@@ -123,8 +134,8 @@ export class TelegramPostService {
     const videoMediaGroup: MediaGroup = urls.map((url, index) => ({
       type: 'video',
       media: url,
-      caption: index === 0 ? text : undefined,
-      parse_mode: 'HTML',
+      caption: index === 0 ? this.getMessageText(text) : this.getMessageSign(),
+      ...this.getMessageOptions(),
     }));
 
     try {
@@ -132,6 +143,7 @@ export class TelegramPostService {
     } catch {
       try {
         await this.sendAnimationMediaGroup(telegramChannelId, urls, text);
+        console.log('Video group  was successfully sent');
       } catch (error) {
         console.error('Video group was not sent (as animation tried):', error);
       }
@@ -148,8 +160,11 @@ export class TelegramPostService {
     for (const [index, url] of urls.entries()) {
       try {
         await this.bot.telegram.sendVideo(telegramChannelId, url, {
-          caption: index === indexOfLastAnimationFile ? text : undefined,
-          parse_mode: 'HTML',
+          caption:
+            index === indexOfLastAnimationFile
+              ? this.getMessageText(text)
+              : this.getMessageSign(),
+          ...this.getMessageOptions(),
         });
         console.log('Video was successfully sent');
       } catch (error) {
@@ -174,14 +189,18 @@ export class TelegramPostService {
         return {
           type: 'document',
           media: inputFile,
-          caption: index === indexOfLastInputFile ? text : undefined,
-          parse_mode: 'HTML',
+          caption:
+            index === indexOfLastInputFile
+              ? this.getMessageText(text)
+              : undefined,
+          ...this.getMessageOptions(),
         };
       }
     );
 
     try {
       await this.sendMediaGroup(telegramChannelId, documentsMediaGroup);
+      console.log('Document group  was successfully sent');
     } catch (error) {
       console.error('Document group was not sent:', error);
     }
@@ -224,5 +243,58 @@ export class TelegramPostService {
         filename: 'placeholder',
       };
     });
+  }
+
+  private getMessageText(text: string, isNoMedia: boolean = false): string {
+    const sign = this.getMessageSign();
+    const maxLength = isNoMedia
+      ? MAX_CHARACTERS_TG_TEXT
+      : MAX_CHARACTERS_TG_CAPTION;
+    const arrowDownEmoji = '⬇️';
+
+    if (!text) return sign;
+
+    const signedText = `${text}\n\n${sign}`;
+
+    if (signedText.length <= maxLength) return signedText;
+
+    const truncatedLength = maxLength - sign.length - arrowDownEmoji.length - 1;
+    let truncatedText = text.slice(0, truncatedLength);
+
+    const lastSpaceIndex = truncatedText.lastIndexOf(' ');
+
+    if (lastSpaceIndex > 0) {
+      truncatedText = truncatedText.slice(0, lastSpaceIndex);
+    }
+
+    const remainingText = text.slice(truncatedText.length).trim();
+
+    if (remainingText) {
+      setTimeout(() => {
+        this.sendTextMessage(
+          this.telegramChannelId,
+          remainingText,
+          isNoLinks(remainingText)
+        );
+      }, 10000);
+    }
+
+    return `${truncatedText} ${arrowDownEmoji}\n\n${sign}`;
+  }
+
+  private getMessageOptions(isTurnOffLinkPreview?: boolean): ExtraReplyMessage {
+    return {
+      parse_mode: 'HTML',
+      link_preview_options: {
+        is_disabled:
+          isTurnOffLinkPreview !== undefined
+            ? isTurnOffLinkPreview
+            : this.isNoLinks,
+      },
+    };
+  }
+
+  private getMessageSign(): string {
+    return `<a href="${this.post.messageUrl}">Source</a> | ${this.post.channelType}`;
   }
 }

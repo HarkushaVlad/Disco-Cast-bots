@@ -23,7 +23,8 @@ export class DiscordPostService {
     const post: PostPayload = {
       text: filteredText,
       medias,
-      channelType: channelTypeMap.get(this.message.channelId) ?? 'other',
+      messageUrl: this.message.url,
+      channelType: channelTypeMap.get(this.message.channelId) ?? '#other',
     };
 
     try {

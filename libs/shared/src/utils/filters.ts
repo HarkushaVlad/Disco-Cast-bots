@@ -32,7 +32,7 @@ export const convertDiscordMarkdownToHTML = (message: Message): string => {
 
   let text = convertAllMentions(rawText, mentions);
 
-  text = text
+  const convertedText = text
     // Replace triple asterisks (***text***) with bold italic (<b><i>text</i></b>)
     .replace(/(?<!\\)\*\*\*(.*?)\*\*\*/g, '<b><i>$1</i></b>')
 
@@ -69,5 +69,12 @@ export const convertDiscordMarkdownToHTML = (message: Message): string => {
     // Replace multiple spaces (2 or more) with a single space
     .replace(/ +/g, ' ');
 
-  return text;
+  return convertedText;
+};
+
+export const isNoLinks = (text: string): boolean => {
+  const urlRegex = /https?:\/\/\S+/g;
+  const matches = text.match(urlRegex);
+  console.log(matches, text);
+  return matches === null || matches.length === 0;
 };
