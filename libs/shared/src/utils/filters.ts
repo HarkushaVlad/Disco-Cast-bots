@@ -63,8 +63,11 @@ export const convertDiscordMarkdownToHTML = (message: Message): string => {
     // Replace double backslashes (\\) with a single backslash (\)
     .replace(/\\\\/g, '\\')
 
+    // Remove spaces at the beginning of each line
+    .replace(/^ +/gm, '')
+
     // Replace multiple spaces (2 or more) with a single space
-    .replace(/\s{2,}/g, ' ');
+    .replace(/ +/g, ' ');
 
   return text;
 };
