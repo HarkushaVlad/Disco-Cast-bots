@@ -5,8 +5,12 @@ export type Post =
   | 'liveEvents'
   | 'other';
 
+export type MediaType = 'photo' | 'video' | 'animation' | 'document';
+
+export type Medias = Record<MediaType, string[]>;
+
 export interface PostPayload {
   text: string;
-  media: string[];
-  postType: Post;
+  medias: Medias;
+  channelType: Post;
 }

@@ -1,5 +1,7 @@
 import { Telegraf } from 'telegraf';
 import { config } from '@sot-news-bot/shared';
+import { PostPayload } from '../../../libs/shared/src/types/post.types';
+import { TelegramPostService } from './services/telegramPost.service';
 
 const bot = new Telegraf(config.telegramBotToken);
 
@@ -8,14 +10,16 @@ export const startBot = () => {
   console.log('Telegram bot is running');
 };
 
-export const sendMessage = async (text: string) => {
-  try {
-    await bot.telegram.sendMessage(config.telegramChannelId, text, {
-      parse_mode: 'HTML',
-    });
-    console.log('Post was successfully posted');
-  } catch (error) {
-    console.error('Error posting post:', error);
-    throw error;
-  }
+export const handlePost = async (
+  telegramChannelId: string,
+  post: PostPayload
+) => {
+  const telegramPostService: TelegramPostService = new TelegramPostService(
+    bot,
+    telegramChannelId,
+    post
+  );
+  await telegramPostService.sendPost();
 };
+
+export type TgBot = typeof bot;

@@ -12,7 +12,7 @@ app.use(postRoutes);
 const PORT = config.telegramServerPort;
 
 app.listen(PORT, () => {
-  console.log(`Telegram bot server is running on port ${PORT}`);
+  console.log(`Telegram bot server is running on port ${PORT}\n\n`);
 });
 
 startBot();
