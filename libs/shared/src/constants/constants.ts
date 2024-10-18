@@ -1,11 +1,4 @@
-import { MediaType, Post } from '../types/post.types';
-import { config } from '@disco-cast-bot/shared';
-
-export const channelTypeMap = new Map<string, Post>();
-channelTypeMap.set(config.discordAnnouncementChannelId!, '#announcement');
-channelTypeMap.set(config.discordReleaseNotesChannelId!, '#releasenotes');
-channelTypeMap.set(config.discordGameUpdatesChannelId!, '#gameupdates');
-channelTypeMap.set(config.discordLiveEventsChannelId!, '#liveevents');
+import { MediaType } from '../types/post.types';
 
 export const SEND_ORDER_MEDIAS: MediaType[] = [
   'animation',

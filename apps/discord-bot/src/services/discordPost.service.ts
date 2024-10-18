@@ -1,12 +1,11 @@
 import axios from 'axios';
-import { Message } from 'discord.js';
+import { ChannelType, Message } from 'discord.js';
 import { config } from '@disco-cast-bot/shared';
 import {
   Medias,
   MediaType,
   PostPayload,
 } from '../../../../libs/shared/src/types/post.types';
-import { channelTypeMap } from '../../../../libs/shared/src/constants/constants';
 import { convertDiscordMarkdownToHTML } from '../../../../libs/shared/src/utils/filters';
 
 export class DiscordPostService {
@@ -27,7 +26,7 @@ export class DiscordPostService {
       messageUrl: reference
         ? `https://discord.com/channels/${reference.guildId}/${reference.channelId}/${reference.messageId}`
         : this.message.url,
-      channelType: channelTypeMap.get(this.message.channelId) ?? '#other',
+      channelType: this.getChannelName(),
     };
 
     try {
@@ -80,5 +79,18 @@ export class DiscordPostService {
     }
 
     return 'document';
+  }
+
+  private getChannelName(): string {
+    if (
+      this.message.channel.type === ChannelType.GuildText ||
+      this.message.channel.type === ChannelType.GuildAnnouncement ||
+      this.message.channel.type === ChannelType.PublicThread ||
+      this.message.channel.type === ChannelType.PrivateThread
+    ) {
+      return '#' + this.message.channel.name.replace(/-/g, '');
+    }
+
+    return '#other';
   }
 }
