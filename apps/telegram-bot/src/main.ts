@@ -2,7 +2,7 @@ import express from 'express';
 import 'dotenv/config';
 import { startBot } from './bot';
 import postRoutes from './routes/post.routes';
-import { config } from '@sot-news-bot/shared';
+import { config } from '@disco-cast-bot/shared';
 
 const app = express();
 app.use(express.json());

@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { Message } from 'discord.js';
-import { config } from '@sot-news-bot/shared';
+import { config } from '@disco-cast-bot/shared';
 import {
   Medias,
   MediaType,

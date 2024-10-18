@@ -1,5 +1,5 @@
 import { Telegraf } from 'telegraf';
-import { config } from '@sot-news-bot/shared';
+import { config } from '@disco-cast-bot/shared';
 import { PostPayload } from '../../../libs/shared/src/types/post.types';
 import { TelegramPostService } from './services/telegramPost.service';
 

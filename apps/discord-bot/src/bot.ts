@@ -1,6 +1,6 @@
 import { Client, GatewayIntentBits } from 'discord.js';
 import { DiscordPostService } from './services/discordPost.service';
-import { config } from '@sot-news-bot/shared';
+import { config } from '@disco-cast-bot/shared';
 
 const client = new Client({
   intents: [

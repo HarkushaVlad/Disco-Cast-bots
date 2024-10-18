@@ -1,5 +1,5 @@
 import { MediaType, Post } from '../types/post.types';
-import { config } from '@sot-news-bot/shared';
+import { config } from '@disco-cast-bot/shared';
 
 export const channelTypeMap = new Map<string, Post>();
 channelTypeMap.set(config.discordAnnouncementChannelId!, '#announcement');
