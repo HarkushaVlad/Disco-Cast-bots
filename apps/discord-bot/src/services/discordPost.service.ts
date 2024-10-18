@@ -1,4 +1,3 @@
-import axios from 'axios';
 import { ChannelType, Message } from 'discord.js';
 import { config } from '@disco-cast-bot/shared';
 import {
@@ -7,6 +6,7 @@ import {
   PostPayload,
 } from '../../../../libs/shared/src/types/post.types';
 import { convertDiscordMarkdownToHTML } from '../../../../libs/shared/src/utils/filters';
+import { handlePost as handleTelegramPost } from '../../../telegram-bot/src/bot';
 
 export class DiscordPostService {
   private readonly message: Message;
@@ -30,10 +30,7 @@ export class DiscordPostService {
     };
 
     try {
-      await axios.post(
-        `http://localhost:${config.telegramServerPort}/send-message`,
-        post
-      );
+      await handleTelegramPost(config.telegramChannelId, post);
       console.log(
         `Message from ${post.channelType} channel was successfully sent`
       );
