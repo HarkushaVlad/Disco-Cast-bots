@@ -19,11 +19,14 @@ export class DiscordPostService {
   async sendPost() {
     const filteredText = convertDiscordMarkdownToHTML(this.message);
     const medias = this.getMediasFromMessage(this.message);
+    const reference = this.message.reference;
 
     const post: PostPayload = {
       text: filteredText,
       medias,
-      messageUrl: this.message.url,
+      messageUrl: reference
+        ? `https://discord.com/channels/${reference.guildId}/${reference.channelId}/${reference.messageId}`
+        : this.message.url,
       channelType: channelTypeMap.get(this.message.channelId) ?? '#other',
     };
 

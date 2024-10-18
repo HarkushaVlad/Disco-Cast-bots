@@ -75,6 +75,5 @@ export const convertDiscordMarkdownToHTML = (message: Message): string => {
 export const isNoLinks = (text: string): boolean => {
   const urlRegex = /https?:\/\/\S+/g;
   const matches = text.match(urlRegex);
-  console.log(matches, text);
   return matches === null || matches.length === 0;
 };

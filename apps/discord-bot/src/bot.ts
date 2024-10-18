@@ -19,6 +19,6 @@ export const startBot = () => {
   client.login(config.discordBotToken);
 
   client.once('ready', () => {
-    console.log(`Logged in as ${client.user?.tag}\n\n`);
+    console.log(`Logged in as ${client.user?.tag}\n`);
   });
 };
