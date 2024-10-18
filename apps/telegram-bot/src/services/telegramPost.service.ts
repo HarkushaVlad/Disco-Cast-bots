@@ -4,13 +4,13 @@ import {
 } from '../../../../libs/shared/src/types/post.types';
 import { TgBot } from '../bot';
 import { ExtraReplyMessage, MediaGroup } from 'telegraf/typings/telegram-types';
-import axios from 'axios';
 import {
   MAX_CHARACTERS_TG_CAPTION,
   MAX_CHARACTERS_TG_TEXT,
   SEND_ORDER_MEDIAS,
 } from '../../../../libs/shared/src/constants/constants';
 import { isNoLinks } from '../../../../libs/shared/src/utils/filters';
+import axios from 'axios';
 
 export class TelegramPostService {
   private readonly bot: TgBot;
@@ -26,25 +26,24 @@ export class TelegramPostService {
   }
 
   async sendPost() {
-    const hasMedia =
-      this.post.medias &&
-      Object.values(this.post.medias).some((urls) => urls.length > 0);
-
-    if (hasMedia) {
-      await this.sendMedias(this.telegramChannelId, this.post);
+    if (this.hasMedia()) {
+      await this.sendMedias();
     } else {
-      await this.sendTextMessage(this.telegramChannelId, this.post.text);
+      await this.sendTextMessage(this.post.text);
     }
   }
 
-  private sendTextMessage = async (
-    telegramChannelId: string,
-    text: string,
-    isTurnOffLinkPreview?: boolean
-  ) => {
+  private hasMedia(): boolean {
+    return (
+      this.post.medias &&
+      Object.values(this.post.medias).some((urls) => urls.length > 0)
+    );
+  }
+
+  private async sendTextMessage(text: string, isTurnOffLinkPreview?: boolean) {
     try {
       await this.bot.telegram.sendMessage(
-        telegramChannelId,
+        this.telegramChannelId,
         this.getMessageText(text, true),
         this.getMessageOptions(isTurnOffLinkPreview)
       );
@@ -52,16 +51,13 @@ export class TelegramPostService {
     } catch (error) {
       console.error('Error sending text message:', error);
     }
-  };
+  }
 
-  private async sendMedias(
-    telegramChannelId: string,
-    { medias, text }: PostPayload
-  ) {
+  private async sendMedias() {
     const mediaToSend: { type: MediaType; urls: string[] }[] = [];
 
     SEND_ORDER_MEDIAS.forEach((mediaType) => {
-      const urls = medias[mediaType];
+      const urls = this.post.medias[mediaType];
       if (urls && urls.length > 0) {
         mediaToSend.push({ type: mediaType, urls });
       }
@@ -76,61 +72,54 @@ export class TelegramPostService {
       let caption: string | undefined;
 
       if (isLast && !onlyDocuments) {
-        caption = text;
+        caption = this.post.text;
       } else if (onlyDocuments) {
-        caption = text;
+        caption = this.post.text;
       }
 
       try {
-        switch (type) {
-          case 'photo':
-            await this.sendPhotoMediaGroup(telegramChannelId, urls, caption);
-            break;
-          case 'video':
-            await this.sendVideoMediaGroup(telegramChannelId, urls, caption);
-            break;
-          case 'animation':
-            await this.sendAnimationMediaGroup(
-              telegramChannelId,
-              urls,
-              caption
-            );
-            break;
-          case 'document':
-            await this.sendDocumentMediaGroup(telegramChannelId, urls, caption);
-            break;
-        }
+        await this.sendMedia(type, urls, caption);
       } catch (error) {
         console.error(`Error sending ${type}:`, error);
       }
     }
   }
 
-  private async sendPhotoMediaGroup(
-    telegramChannelId: string,
-    urls: string[],
-    text: string
-  ) {
+  private async sendMedia(type: MediaType, urls: string[], caption?: string) {
+    switch (type) {
+      case 'photo':
+        await this.sendPhotoMediaGroup(urls, caption);
+        break;
+      case 'video':
+        await this.sendVideoMediaGroup(urls, caption);
+        break;
+      case 'animation':
+        await this.sendAnimationMediaGroup(urls, caption);
+        break;
+      case 'document':
+        await this.sendDocumentMediaGroup(urls, caption);
+        break;
+    }
+  }
+
+  private async sendPhotoMediaGroup(urls: string[], text?: string) {
     const photoMediaGroup: MediaGroup = urls.map((url, index) => ({
       type: 'photo',
       media: url,
-      caption: index === 0 ? this.getMessageText(text) : this.getMessageSign(),
+      caption:
+        index === 0 ? this.getMessageText(text || '') : this.getMessageSign(),
       ...this.getMessageOptions(),
     }));
 
     try {
-      await this.sendMediaGroup(telegramChannelId, photoMediaGroup);
-      console.log('Photo group  was successfully sent');
+      await this.sendMediaGroup(photoMediaGroup);
+      console.log('Photo group was successfully sent');
     } catch (error) {
       console.error('Photo group was not sent:', error);
     }
   }
 
-  private async sendVideoMediaGroup(
-    telegramChannelId: string,
-    urls: string[],
-    text: string
-  ) {
+  private async sendVideoMediaGroup(urls: string[], text: string) {
     const videoMediaGroup: MediaGroup = urls.map((url, index) => ({
       type: 'video',
       media: url,
@@ -139,10 +128,10 @@ export class TelegramPostService {
     }));
 
     try {
-      await this.sendMediaGroup(telegramChannelId, videoMediaGroup);
+      await this.sendMediaGroup(videoMediaGroup);
     } catch {
       try {
-        await this.sendAnimationMediaGroup(telegramChannelId, urls, text);
+        await this.sendAnimationMediaGroup(urls, text);
         console.log('Video group  was successfully sent');
       } catch (error) {
         console.error('Video group was not sent (as animation tried):', error);
@@ -150,16 +139,12 @@ export class TelegramPostService {
     }
   }
 
-  private async sendAnimationMediaGroup(
-    telegramChannelId: string,
-    urls: string[],
-    text: string
-  ) {
+  private async sendAnimationMediaGroup(urls: string[], text: string) {
     const indexOfLastAnimationFile = urls.length - 1;
 
     for (const [index, url] of urls.entries()) {
       try {
-        await this.bot.telegram.sendVideo(telegramChannelId, url, {
+        await this.bot.telegram.sendVideo(this.telegramChannelId, url, {
           caption:
             index === indexOfLastAnimationFile
               ? this.getMessageText(text)
@@ -173,11 +158,7 @@ export class TelegramPostService {
     }
   }
 
-  private async sendDocumentMediaGroup(
-    telegramChannelId: string,
-    urls: string[],
-    text: string
-  ) {
+  private async sendDocumentMediaGroup(urls: string[], text: string) {
     const fileBuffers = await this.downloadFilesToBuffer(urls);
 
     const inputFiles = this.buffersToInputFiles(fileBuffers);
@@ -199,19 +180,19 @@ export class TelegramPostService {
     );
 
     try {
-      await this.sendMediaGroup(telegramChannelId, documentsMediaGroup);
+      await this.sendMediaGroup(documentsMediaGroup);
       console.log('Document group  was successfully sent');
     } catch (error) {
       console.error('Document group was not sent:', error);
     }
   }
 
-  private async sendMediaGroup(
-    telegramChannelId: string,
-    mediaGroup: MediaGroup
-  ) {
+  private async sendMediaGroup(mediaGroup: MediaGroup) {
     try {
-      await this.bot.telegram.sendMediaGroup(telegramChannelId, mediaGroup);
+      await this.bot.telegram.sendMediaGroup(
+        this.telegramChannelId,
+        mediaGroup
+      );
     } catch (error) {
       throw error;
     }
@@ -271,11 +252,7 @@ export class TelegramPostService {
 
     if (remainingText) {
       setTimeout(() => {
-        this.sendTextMessage(
-          this.telegramChannelId,
-          remainingText,
-          isNoLinks(remainingText)
-        );
+        this.sendTextMessage(remainingText, isNoLinks(remainingText));
       }, 10000);
     }
 
