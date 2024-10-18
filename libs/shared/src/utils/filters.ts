@@ -33,6 +33,9 @@ export const convertDiscordMarkdownToHTML = (message: Message): string => {
   let text = convertAllMentions(rawText, mentions);
 
   const convertedText = text
+    // Remove custom emojis
+    .replace(/:[a-zA-Z0-9_]+:/g, '')
+
     // Replace triple asterisks (***text***) with bold italic (<b><i>text</i></b>)
     .replace(/(?<!\\)\*\*\*(.*?)\*\*\*/g, '<b><i>$1</i></b>')
 
