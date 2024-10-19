@@ -1,18 +1,20 @@
 import { ChannelType, Message } from 'discord.js';
-import { config } from '@disco-cast-bot/shared';
 import {
   Medias,
   MediaType,
   PostPayload,
 } from '../../../../libs/shared/src/types/post.types';
+import { Channel } from 'amqplib';
 import { convertDiscordMarkdownToHTML } from '../../../../libs/shared/src/utils/filters';
-import { handlePost as handleTelegramPost } from '../../../telegram-bot/src/bot';
+import { sendPostToQueue } from '../../../../libs/shared/src/messaging/rabbitmq';
 
 export class DiscordPostService {
   private readonly message: Message;
+  private readonly channel: Channel;
 
-  constructor(message: Message) {
+  constructor(message: Message, channel: Channel) {
     this.message = message;
+    this.channel = channel;
   }
 
   async sendPost() {
@@ -30,7 +32,7 @@ export class DiscordPostService {
     };
 
     try {
-      await handleTelegramPost(config.telegramChannelId, post);
+      await sendPostToQueue(this.channel, post);
       console.log(
         `Message from ${post.channelType} channel was successfully sent`
       );
