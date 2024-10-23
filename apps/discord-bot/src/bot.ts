@@ -31,7 +31,6 @@ export const startBot = async () => {
       console.log(`Logged in as ${client.user?.tag}\n`);
     });
 
-    // Обробка сигналів для закриття
     process.on('SIGINT', closeConnections);
     process.on('SIGTERM', closeConnections);
   } catch (error) {
