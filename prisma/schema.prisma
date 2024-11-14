@@ -13,12 +13,19 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model TelegramUser {
+  id           Int           @id @unique
+  telegramKeys TelegramKey[]
+}
+
 model TelegramKey {
   id                Int              @id @default(autoincrement())
+  ownerId           Int
   telegramChannelId BigInt           @unique
   uniqueKey         String           @unique
   description       String
   discordChannels   DiscordChannel[] @relation("ChannelUniqueKey")
+  owner             TelegramUser     @relation(fields: [ownerId], references: [id])
 }
 
 model DiscordChannel {

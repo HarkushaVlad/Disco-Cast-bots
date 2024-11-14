@@ -6,12 +6,14 @@ import { connectToRabbitMQ } from '../../../libs/shared/src/messaging/rabbitmq';
 import {
   CREATE_TELEGRAM_KEY_COMMAND,
   RABBITMQ_POST_QUEUE_NAME,
+  SHOW_TELEGRAMS_KEYS_COMMAND,
 } from '../../../libs/shared/src/constants/constants';
 import { Channel, Connection } from 'amqplib';
 import { setupCommands } from './commands';
-import { message } from 'telegraf/filters';
+import { callbackQuery, message } from 'telegraf/filters';
 import { getUserSession } from './services/sessionManager';
 import { handleCreateKeySteps } from './commands/createKey';
+import { handleShowKeysSteps } from './commands/showKeys';
 
 const setupMessageConsumption = (channel: Channel) => {
   channel.consume(RABBITMQ_POST_QUEUE_NAME, async (msg) => {
@@ -44,7 +46,7 @@ export const handlePost = async (
   await telegramPostService.sendPost();
 };
 
-const handleUserMessage = async (ctx: Context) => {
+const handleUserAction = async (ctx: Context) => {
   const userId = ctx.from.id;
   const session = getUserSession(userId);
 
@@ -53,7 +55,10 @@ const handleUserMessage = async (ctx: Context) => {
   switch (session.command) {
     case CREATE_TELEGRAM_KEY_COMMAND:
       handleCreateKeySteps(ctx, session);
-      break;
+      return;
+    case SHOW_TELEGRAMS_KEYS_COMMAND:
+      handleShowKeysSteps(ctx, session);
+      return;
   }
 };
 
@@ -79,7 +84,8 @@ export const startBot = async () => {
     ({ connection, channel } = await connectToRabbitMQ());
     setupMessageConsumption(channel);
     setupCommands(bot);
-    bot.on(message(), async (ctx) => handleUserMessage(ctx));
+    bot.on(message(), async (ctx) => handleUserAction(ctx));
+    bot.on(callbackQuery(), async (ctx) => handleUserAction(ctx));
     bot.launch();
     console.log('Telegram bot is running');
 
