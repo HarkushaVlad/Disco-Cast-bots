@@ -3,13 +3,19 @@ import { prisma } from '../services/prismaClient';
 import { TelegramKey } from '@prisma/client';
 import {
   addUserSessionData,
+  getUserSession,
   setUserSession,
   updateUserSession,
   UserSession,
 } from '../services/sessionManager';
-import { SHOW_TELEGRAMS_KEYS_COMMAND } from '../../../../libs/shared/src/constants/constants';
+import {
+  DELETE_CALLBACK_QUERY_DATA,
+  KEY_CALLBACK_QUERY_DATA,
+  PAGE_CALLBACK_QUERY_DATA,
+  SHOW_TELEGRAMS_KEYS_COMMAND,
+} from '../constants/constants';
 
-const KEYS_PER_PAGE = 3;
+const KEYS_PER_PAGE = 5;
 
 export const showKeysCommand = async (ctx: Context) => {
   const ownerId = ctx.from.id;
@@ -17,13 +23,12 @@ export const showKeysCommand = async (ctx: Context) => {
   setUserSession(ownerId, SHOW_TELEGRAMS_KEYS_COMMAND);
 
   const totalKeys = await getTotalKeys(ownerId);
-  const userKeys = await getKeysPage(ownerId);
-
-  if (userKeys.length === 0) {
+  if (totalKeys === 0) {
     ctx.reply('ℹ You do not have any keys.');
     return;
   }
 
+  const userKeys = await getKeysPage(ownerId);
   await displayKeysPage(ctx, userKeys, 0, totalKeys);
 };
 
@@ -35,113 +40,166 @@ const displayKeysPage = async (
 ) => {
   const totalPages = Math.ceil(totalKeys / KEYS_PER_PAGE);
 
-  const keyButtons = keys.map((key) =>
-    Markup.button.callback(`🔑 ${key.description}`, `key_${key.uniqueKey}`)
-  );
-
+  const keyButtons = createKeyButtons(keys);
   const paginationButtons = createPaginationButtons(pageIndex, totalPages);
 
   const session = addUserSessionData(ctx.from.id, { totalKeys });
 
   const text = `${pageIndex + 1}️⃣|${totalPages}️⃣ - Here are your keys:`;
   const inlineKeyboardMarkup = Markup.inlineKeyboard([
-    ...keyButtons.map((btn) => [btn]),
+    ...keyButtons,
     paginationButtons,
-  ]);
+  ]).reply_markup;
 
-  if ('messageId' in session.data) {
-    try {
-      ctx.telegram.editMessageText(
+  await updateMessage(ctx, session, text, inlineKeyboardMarkup);
+};
+
+const createKeyButtons = (keys: TelegramKey[]) =>
+  keys
+    .map((key) =>
+      Markup.button.callback(
+        `🔑 ${key.description}`,
+        `${KEY_CALLBACK_QUERY_DATA}_${key.uniqueKey}_${key.description}`
+      )
+    )
+    .map((btn) => [btn]);
+
+const createPaginationButtons = (pageIndex: number, totalPages: number) => {
+  const buttons = [];
+  if (pageIndex > 0)
+    buttons.push(
+      Markup.button.callback(
+        '⬅',
+        `${PAGE_CALLBACK_QUERY_DATA}_${pageIndex - 1}`
+      )
+    );
+  if (pageIndex + 1 < totalPages)
+    buttons.push(
+      Markup.button.callback(
+        '➡',
+        `${PAGE_CALLBACK_QUERY_DATA}_${pageIndex + 1}`
+      )
+    );
+  return buttons.length ? buttons : [];
+};
+
+const updateMessage = async (
+  ctx: Context,
+  session: UserSession,
+  text: string,
+  replyMarkup: any
+) => {
+  try {
+    if ('messageId' in session.data) {
+      await ctx.telegram.editMessageText(
         ctx.chat.id,
         session.data.messageId,
         undefined,
         text,
-        inlineKeyboardMarkup
+        {
+          parse_mode: 'HTML',
+          reply_markup: replyMarkup,
+        }
       );
       return;
-    } catch (error) {
-      console.error(error);
     }
+    const sentMessage = await ctx.reply(text, {
+      parse_mode: 'HTML',
+      reply_markup: replyMarkup,
+    });
+    updateUserSession(ctx.from.id, {
+      data: { ...session.data, messageId: sentMessage.message_id },
+    });
+  } catch (error) {
+    console.error('Error updating message:', error);
   }
-
-  const sentMessage = await ctx.reply(text, inlineKeyboardMarkup);
-  updateUserSession(ctx.from.id, {
-    data: { ...session.data, messageId: sentMessage.message_id },
-  });
 };
 
 const handleButtonPress = async (ctx: Context, session: UserSession) => {
-  if (!(ctx.callbackQuery && 'data' in ctx.callbackQuery)) {
-    return;
-  }
+  if (!('data' in ctx.callbackQuery)) return;
 
   const callbackData = ctx.callbackQuery.data;
+  if (!callbackData) return;
 
-  if (callbackData.startsWith('page_')) {
+  const ownerId = ctx.from.id;
+
+  if (callbackData.startsWith(PAGE_CALLBACK_QUERY_DATA + '_')) {
     const pageIndex = parseInt(callbackData.split('_')[1], 10);
-    const ownerId = ctx.from.id;
-
-    const totalKeys =
-      (session.data.totalPages as number) ?? (await getTotalKeys(ownerId));
+    const totalKeys = session.data.totalKeys || (await getTotalKeys(ownerId));
     const userKeys = await getKeysPage(ownerId, pageIndex * KEYS_PER_PAGE);
-
     await displayKeysPage(ctx, userKeys, pageIndex, totalKeys);
-  } else if (callbackData.startsWith('key_')) {
+  } else if (callbackData.startsWith(KEY_CALLBACK_QUERY_DATA + '_')) {
     await displayKeyDetails(ctx);
+  } else if (callbackData.startsWith(DELETE_CALLBACK_QUERY_DATA + '_')) {
+    await handleKeyDeletion(ctx, callbackData, ownerId);
   }
 };
 
-const createPaginationButtons = (pageIndex: number, totalPages: number) => {
-  const paginationButtons = [];
-  if (pageIndex > 0) {
-    paginationButtons.push(
-      Markup.button.callback('⬅', `page_${pageIndex - 1}`)
+const handleKeyDeletion = async (
+  ctx: Context,
+  callbackData: string,
+  ownerId: number
+) => {
+  const key = callbackData.split('_')[1];
+  try {
+    await prisma.telegramKey.delete({ where: { uniqueKey: key } });
+    await ctx.answerCbQuery('✅ Key successfully deleted.');
+
+    const totalKeys = await getTotalKeys(ownerId);
+    if (totalKeys === 0) {
+      await ctx.editMessageText('ℹ You do not have any keys.', {
+        parse_mode: 'HTML',
+      });
+      return;
+    }
+
+    const userKeys = await getKeysPage(ownerId);
+    await displayKeysPage(ctx, userKeys, 0, totalKeys);
+  } catch (error) {
+    console.error('Error deleting key:', error);
+    await ctx.answerCbQuery(
+      '❌ Failed to delete the key. Please try again later.'
     );
   }
-  if (pageIndex + 1 < totalPages) {
-    paginationButtons.push(
-      Markup.button.callback('➡', `page_${pageIndex + 1}`)
-    );
-  }
-  return paginationButtons;
 };
 
 const displayKeyDetails = async (ctx: Context) => {
-  if (
-    !(
-      ctx.callbackQuery &&
-      'data' in ctx.callbackQuery &&
-      ctx.callbackQuery.data.startsWith('key_')
-    )
-  ) {
-    return;
-  }
+  if (!('data' in ctx.callbackQuery)) return;
 
-  const uniqueKey = ctx.callbackQuery.data.split('_')[1];
-  console.log(`Selected key data: ${uniqueKey}`);
-  await ctx.answerCbQuery(`You selected key with ID: ${uniqueKey}`);
+  const data = ctx.callbackQuery.data.split('_');
+  if (!data || data.length < 3) return;
+
+  const [, key, description] = data;
+  const text = `🔑 <code>${key}</code>\n🗒 Description: <i>${description}</i>`;
+  const inlineKeyboardMarkup = Markup.inlineKeyboard([
+    Markup.button.callback('⬅', `${PAGE_CALLBACK_QUERY_DATA}_${0}`),
+    Markup.button.callback('🗑', `${DELETE_CALLBACK_QUERY_DATA}_${key}`),
+  ]).reply_markup;
+
+  await updateMessage(
+    ctx,
+    getUserSession(ctx.from.id),
+    text,
+    inlineKeyboardMarkup
+  );
 };
 
-const getKeysPage = async (ownerId: number, skip = 0) => {
-  return prisma.telegramKey.findMany({
+const getKeysPage = async (ownerId: number, skip = 0) =>
+  prisma.telegramKey.findMany({
     where: { ownerId },
     skip,
     take: KEYS_PER_PAGE,
     orderBy: { description: 'asc' },
   });
-};
 
-const getTotalKeys = async (ownerId: number) => {
-  return prisma.telegramKey.count({
+const getTotalKeys = async (ownerId: number) =>
+  prisma.telegramKey.count({
     where: { ownerId },
   });
-};
 
 export const handleShowKeysSteps = async (
   ctx: Context,
   session: UserSession
 ) => {
-  if (ctx.callbackQuery && 'data' in ctx.callbackQuery) {
-    await handleButtonPress(ctx, session);
-  }
+  if ('data' in ctx.callbackQuery) await handleButtonPress(ctx, session);
 };

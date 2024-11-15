@@ -5,14 +5,15 @@ import {
   updateUserSession,
   UserSession,
 } from '../services/sessionManager';
+
+import { randomBytes } from 'crypto';
+import { prisma } from '../services/prismaClient';
+import { getOrCreateTelegramUser } from '../services/telegramUser.service';
 import {
   CREATE_TELEGRAM_KEY_ADD_DESCRIPTION_STEP,
   CREATE_TELEGRAM_KEY_COMMAND,
   CREATE_TELEGRAM_KEY_GET_GROUP_ID_STEP,
-} from '../../../../libs/shared/src/constants/constants';
-import { randomBytes } from 'crypto';
-import { prisma } from '../services/prismaClient';
-import { getOrCreateTelegramUser } from '../services/telegramUser.service';
+} from '../constants/constants';
 
 const generateUniqueKey = (length: number): string =>
   randomBytes(length).toString('hex');

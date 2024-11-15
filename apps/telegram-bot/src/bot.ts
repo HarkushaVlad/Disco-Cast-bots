@@ -3,17 +3,17 @@ import { config } from '@disco-cast-bot/shared';
 import { PostPayload } from '../../../libs/shared/src/types/post.types';
 import { TelegramPostService } from './services/telegramPost.service';
 import { connectToRabbitMQ } from '../../../libs/shared/src/messaging/rabbitmq';
-import {
-  CREATE_TELEGRAM_KEY_COMMAND,
-  RABBITMQ_POST_QUEUE_NAME,
-  SHOW_TELEGRAMS_KEYS_COMMAND,
-} from '../../../libs/shared/src/constants/constants';
 import { Channel, Connection } from 'amqplib';
 import { setupCommands } from './commands';
 import { callbackQuery, message } from 'telegraf/filters';
 import { getUserSession } from './services/sessionManager';
 import { handleCreateKeySteps } from './commands/createKey';
 import { handleShowKeysSteps } from './commands/showKeys';
+import { RABBITMQ_POST_QUEUE_NAME } from '../../../libs/shared/src/constants/constants';
+import {
+  CREATE_TELEGRAM_KEY_COMMAND,
+  SHOW_TELEGRAMS_KEYS_COMMAND,
+} from './constants/constants';
 
 const setupMessageConsumption = (channel: Channel) => {
   channel.consume(RABBITMQ_POST_QUEUE_NAME, async (msg) => {

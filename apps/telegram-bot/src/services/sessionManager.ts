@@ -1,4 +1,4 @@
-import { TelegramCommand } from '../../../../libs/shared/src/types/command.types';
+import { TelegramCommand } from '../types/command.types';
 
 export interface UserSession {
   userId: number;
