@@ -1,6 +1,7 @@
 import { Context } from 'telegraf';
 import {
   clearUserSession,
+  getUserSession,
   setUserSession,
   updateUserSession,
   UserSession,
@@ -14,6 +15,7 @@ import {
   CREATE_TELEGRAM_KEY_COMMAND,
   CREATE_TELEGRAM_KEY_GET_GROUP_ID_STEP,
 } from '../constants/constants';
+import { deleteMessageFromDataIfExist } from '../services/telegramMessage.service';
 
 const generateUniqueKey = (length: number): string =>
   randomBytes(length).toString('hex');
@@ -22,6 +24,9 @@ const isValidDescription = (description: string): boolean =>
   description.length >= 2 && description.length <= 40;
 
 export const createKeyCommand = async (ctx: Context) => {
+  const session = getUserSession(ctx.from.id);
+  deleteMessageFromDataIfExist(ctx, session);
+
   setUserSession(
     ctx.from.id,
     CREATE_TELEGRAM_KEY_COMMAND,

@@ -14,12 +14,15 @@ import {
   PAGE_CALLBACK_QUERY_DATA,
   SHOW_TELEGRAMS_KEYS_COMMAND,
 } from '../constants/constants';
+import { deleteMessageFromDataIfExist } from '../services/telegramMessage.service';
 
 const KEYS_PER_PAGE = 5;
 
 export const showKeysCommand = async (ctx: Context) => {
   const ownerId = ctx.from.id;
+  const session = getUserSession(ctx.from.id);
 
+  deleteMessageFromDataIfExist(ctx, session);
   setUserSession(ownerId, SHOW_TELEGRAMS_KEYS_COMMAND);
 
   const totalKeys = await getTotalKeys(ownerId);
