@@ -12,7 +12,7 @@ import {
   DELETE_CALLBACK_QUERY_DATA,
   KEY_CALLBACK_QUERY_DATA,
   PAGE_CALLBACK_QUERY_DATA,
-  SHOW_TELEGRAMS_KEYS_COMMAND,
+  SHOW_TELEGRAM_KEYS_COMMAND,
 } from '../constants/constants';
 import { deleteMessageFromDataIfExist } from '../services/telegramMessage.service';
 
@@ -23,7 +23,7 @@ export const showKeysCommand = async (ctx: Context) => {
   const session = getUserSession(ctx.from.id);
 
   deleteMessageFromDataIfExist(ctx, session);
-  setUserSession(ownerId, SHOW_TELEGRAMS_KEYS_COMMAND);
+  setUserSession(ownerId, SHOW_TELEGRAM_KEYS_COMMAND);
 
   const totalKeys = await getTotalKeys(ownerId);
   if (totalKeys === 0) {

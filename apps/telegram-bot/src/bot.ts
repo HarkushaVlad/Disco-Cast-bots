@@ -7,12 +7,14 @@ import { Channel, Connection } from 'amqplib';
 import { setupCommands } from './commands';
 import { callbackQuery, message } from 'telegraf/filters';
 import { getUserSession } from './services/sessionManager';
-import { handleCreateKeySteps } from './commands/createKey';
-import { handleShowKeysSteps } from './commands/showKeys';
+import { createKeyCommand, handleCreateKeySteps } from './commands/createKey';
+import { handleShowKeysSteps, showKeysCommand } from './commands/showKeys';
 import { RABBITMQ_POST_QUEUE_NAME } from '../../../libs/shared/src/constants/constants';
 import {
+  CREATE_TELEGRAM_KEY_BUTTON_COMMAND,
   CREATE_TELEGRAM_KEY_COMMAND,
-  SHOW_TELEGRAMS_KEYS_COMMAND,
+  SHOW_TELEGRAM_KEYS_BUTTON_COMMAND,
+  SHOW_TELEGRAM_KEYS_COMMAND,
 } from './constants/constants';
 
 const setupMessageConsumption = (channel: Channel) => {
@@ -47,6 +49,17 @@ export const handlePost = async (
 };
 
 const handleUserAction = async (ctx: Context) => {
+  if (ctx.message && 'text' in ctx.message) {
+    switch (ctx.message.text) {
+      case CREATE_TELEGRAM_KEY_BUTTON_COMMAND:
+        createKeyCommand(ctx);
+        return;
+      case SHOW_TELEGRAM_KEYS_BUTTON_COMMAND:
+        showKeysCommand(ctx);
+        return;
+    }
+  }
+
   const userId = ctx.from.id;
   const session = getUserSession(userId);
 
@@ -56,7 +69,7 @@ const handleUserAction = async (ctx: Context) => {
     case CREATE_TELEGRAM_KEY_COMMAND:
       handleCreateKeySteps(ctx, session);
       return;
-    case SHOW_TELEGRAMS_KEYS_COMMAND:
+    case SHOW_TELEGRAM_KEYS_COMMAND:
       handleShowKeysSteps(ctx, session);
       return;
   }
