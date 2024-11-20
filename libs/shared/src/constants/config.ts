@@ -3,6 +3,7 @@ import * as process from 'node:process';
 
 export const config = {
   discordBotToken: process.env['DISCORD_BOT_TOKEN'],
+  discordApplicationId: process.env['DISCORD_APPLICATION_ID'],
   telegramBotToken: process.env['TELEGRAM_BOT_TOKEN'],
   telegramChannelId: process.env['TELEGRAM_CHANNEL_ID'],
   telegramServerPort: process.env['TELEGRAM_SERVER_PORT'],
