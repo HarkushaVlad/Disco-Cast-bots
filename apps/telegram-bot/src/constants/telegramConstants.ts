@@ -14,7 +14,7 @@ export const SHOW_TELEGRAM_KEYS_BUTTON_COMMAND = 'Show keys';
 export const ALL_TELEGRAM_COMMANDS = [
   CREATE_TELEGRAM_KEY_COMMAND,
   SHOW_TELEGRAM_KEYS_COMMAND,
-] as const;
+];
 
 export const PAGE_CALLBACK_QUERY_DATA = 'page';
 export const KEY_CALLBACK_QUERY_DATA = 'key';

@@ -1,6 +1,7 @@
 import { Channel, connect } from 'amqplib';
 import { config } from '@disco-cast-bot/shared';
 import { RABBITMQ_POST_QUEUE_NAME } from '../constants/constants';
+import { PostPayload } from '../types/post.types';
 
 export const connectToRabbitMQ = async () => {
   const connection = await connect(config.rabbitMQUrl!);
@@ -9,7 +10,7 @@ export const connectToRabbitMQ = async () => {
   return { connection, channel };
 };
 
-export const sendPostToQueue = async (channel: Channel, post: any) => {
+export const sendPostToQueue = async (channel: Channel, post: PostPayload) => {
   channel.sendToQueue(
     RABBITMQ_POST_QUEUE_NAME,
     Buffer.from(JSON.stringify(post)),

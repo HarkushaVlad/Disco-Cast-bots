@@ -14,187 +14,223 @@ import axios from 'axios';
 
 export class TelegramPostService {
   private readonly bot: TgBot;
-  private readonly telegramChannelId: string;
-  private readonly post: PostPayload;
-  private readonly isNoLinks: boolean;
 
-  constructor(bot: TgBot, telegramChannelId: string, post: PostPayload) {
+  constructor(bot: TgBot) {
     this.bot = bot;
-    this.telegramChannelId = telegramChannelId;
-    this.post = post;
-    this.isNoLinks = isNoLinks(post.text);
   }
 
-  async sendPost() {
-    if (this.hasMedia()) {
-      await this.sendMedias();
+  async sendPost(post: PostPayload, telegramChannelIds: bigint[]) {
+    if (this.hasMedia(post)) {
+      await this.sendMedias(post, telegramChannelIds);
     } else {
-      await this.sendTextMessage(this.post.text);
+      await this.sendTextMessage(post, telegramChannelIds);
     }
   }
 
-  private hasMedia(): boolean {
-    return (
-      this.post.medias &&
-      Object.values(this.post.medias).some((urls) => urls.length > 0)
-    );
+  private hasMedia(post: PostPayload): boolean {
+    return post && Object.values(post.medias).some((urls) => urls.length > 0);
   }
 
-  private async sendTextMessage(text: string, isTurnOffLinkPreview?: boolean) {
-    try {
-      await this.bot.telegram.sendMessage(
-        this.telegramChannelId,
-        this.getMessageText(text, true),
-        this.getMessageOptions(isTurnOffLinkPreview)
-      );
-      console.log('Text message was successfully sent\n');
-    } catch (error) {
-      console.error('Error sending text message:', error);
+  private async sendTextMessage(
+    post: PostPayload,
+    telegramChannelIds: bigint[],
+    isTurnOffLinkPreview?: boolean,
+    specificText?: string
+  ) {
+    for (const channelId of telegramChannelIds) {
+      try {
+        await this.bot.telegram.sendMessage(
+          channelId.toString(),
+          this.getMessageText(post, telegramChannelIds, true, specificText),
+          this.getMessageOptions(post, isTurnOffLinkPreview)
+        );
+        console.log(
+          `Text message was successfully sent to channel ${channelId}\n`
+        );
+      } catch (error) {
+        console.error(
+          `Error sending text message to channel ${channelId}:`,
+          error
+        );
+      }
     }
   }
 
-  private async sendMedias() {
+  private async sendMedias(post: PostPayload, telegramChannelIds: bigint[]) {
     const mediaToSend: { type: MediaType; urls: string[] }[] = [];
 
     SEND_ORDER_MEDIAS.forEach((mediaType) => {
-      const urls = this.post.medias[mediaType];
+      const urls = post.medias[mediaType];
       if (urls && urls.length > 0) {
         mediaToSend.push({ type: mediaType, urls });
       }
     });
 
-    const onlyDocuments =
-      mediaToSend.length === 1 && mediaToSend[0].type === 'document';
-
     for (const [index, media] of mediaToSend.entries()) {
       const { type, urls } = media;
-      const isLast = index === mediaToSend.length - 1;
-      let caption: string | undefined;
-
-      if (isLast && !onlyDocuments) {
-        caption = this.post.text;
-      } else if (onlyDocuments) {
-        caption = this.post.text;
-      }
 
       try {
-        await this.sendMedia(type, urls, caption);
+        await this.sendMedia(type, urls, post, telegramChannelIds);
       } catch (error) {
         console.error(`Error sending ${type}:`, error);
       }
     }
   }
 
-  private async sendMedia(type: MediaType, urls: string[], caption?: string) {
+  private async sendMedia(
+    type: MediaType,
+    urls: string[],
+    post: PostPayload,
+    telegramChannelIds: bigint[]
+  ) {
     switch (type) {
       case 'photo':
-        await this.sendPhotoMediaGroup(urls, caption);
+        await this.sendPhotoMediaGroup(urls, post, telegramChannelIds);
         break;
       case 'video':
-        await this.sendVideoMediaGroup(urls, caption);
+        await this.sendVideoMediaGroup(urls, post, telegramChannelIds);
         break;
       case 'animation':
-        await this.sendAnimationMediaGroup(urls, caption);
+        await this.sendAnimationMediaGroup(urls, post, telegramChannelIds);
         break;
       case 'document':
-        await this.sendDocumentMediaGroup(urls, caption);
+        await this.sendDocumentMediaGroup(urls, post, telegramChannelIds);
         break;
     }
   }
 
-  private async sendPhotoMediaGroup(urls: string[], text?: string) {
-    const photoMediaGroup: MediaGroup = urls.map((url, index) => ({
-      type: 'photo',
-      media: url,
-      caption:
-        index === 0 ? this.getMessageText(text || '') : this.getMessageSign(),
-      ...this.getMessageOptions(),
-    }));
+  private async sendPhotoMediaGroup(
+    urls: string[],
+    post: PostPayload,
+    telegramChannelIds: bigint[]
+  ) {
+    for (const channelId of telegramChannelIds) {
+      const photoMediaGroup: MediaGroup = urls.map((url, index) => ({
+        type: 'photo',
+        media: url,
+        caption:
+          index === 0 ? this.getMessageText(post, telegramChannelIds) : null,
+        ...this.getMessageOptions(post),
+      }));
 
-    try {
-      await this.sendMediaGroup(photoMediaGroup);
-      console.log('Photo group was successfully sent');
-    } catch (error) {
-      console.error('Photo group was not sent:', error);
-    }
-  }
-
-  private async sendVideoMediaGroup(urls: string[], text: string) {
-    const videoMediaGroup: MediaGroup = urls.map((url, index) => ({
-      type: 'video',
-      media: url,
-      caption: index === 0 ? this.getMessageText(text) : this.getMessageSign(),
-      ...this.getMessageOptions(),
-    }));
-
-    try {
-      await this.sendMediaGroup(videoMediaGroup);
-    } catch {
       try {
-        await this.sendAnimationMediaGroup(urls, text);
-        console.log('Video group  was successfully sent');
+        await this.bot.telegram.sendMediaGroup(
+          channelId.toString(),
+          photoMediaGroup
+        );
+        console.log(
+          `Photo group was successfully sent to channel ${channelId}`
+        );
       } catch (error) {
-        console.error('Video group was not sent (as animation tried):', error);
+        console.error(
+          `Photo group was not sent to channel ${channelId}:`,
+          error
+        );
       }
     }
   }
 
-  private async sendAnimationMediaGroup(urls: string[], text: string) {
-    const indexOfLastAnimationFile = urls.length - 1;
+  private async sendVideoMediaGroup(
+    urls: string[],
+    post: PostPayload,
+    telegramChannelIds: bigint[]
+  ) {
+    for (const channelId of telegramChannelIds) {
+      const videoMediaGroup: MediaGroup = urls.map((url, index) => ({
+        type: 'video',
+        media: url,
+        caption:
+          index === 0 ? this.getMessageText(post, telegramChannelIds) : null,
+        ...this.getMessageOptions(post),
+      }));
 
-    for (const [index, url] of urls.entries()) {
       try {
-        await this.bot.telegram.sendVideo(this.telegramChannelId, url, {
-          caption:
-            index === indexOfLastAnimationFile
-              ? this.getMessageText(text)
-              : this.getMessageSign(),
-          ...this.getMessageOptions(),
-        });
-        console.log('Video was successfully sent');
+        await this.bot.telegram.sendMediaGroup(
+          channelId.toString(),
+          videoMediaGroup
+        );
+        console.log(
+          `Video group was successfully sent to channel ${channelId}`
+        );
       } catch (error) {
-        console.error('Error sending video:', error);
+        console.error(
+          `Video group was not sent to channel ${channelId}:`,
+          error
+        );
       }
     }
   }
 
-  private async sendDocumentMediaGroup(urls: string[], text: string) {
+  private async sendAnimationMediaGroup(
+    urls: string[],
+    post: PostPayload,
+    telegramChannelIds: bigint[]
+  ) {
+    for (const channelId of telegramChannelIds) {
+      for (const [index, url] of urls.entries()) {
+        try {
+          await this.bot.telegram.sendVideo(channelId.toString(), url, {
+            caption:
+              index === urls.length - 1
+                ? this.getMessageText(post, telegramChannelIds)
+                : null,
+            ...this.getMessageOptions(post),
+          });
+          console.log(
+            `Animation was successfully sent to channel ${channelId}`
+          );
+        } catch (error) {
+          console.error(
+            `Error sending animation to channel ${channelId}:`,
+            error
+          );
+        }
+      }
+    }
+  }
+
+  private async sendDocumentMediaGroup(
+    urls: string[],
+    post: PostPayload,
+    telegramChannelIds: bigint[]
+  ) {
     const fileBuffers = await this.downloadFilesToBuffer(urls);
 
-    const inputFiles = this.buffersToInputFiles(fileBuffers);
+    const filenames = urls.map((url) => {
+      const filenameWithQueryParams = url.split('/').pop();
+      return filenameWithQueryParams?.split('?')[0];
+    });
+    const inputFiles = this.buffersToInputFiles(fileBuffers, filenames);
 
-    const indexOfLastInputFile = inputFiles.length - 1;
-
-    const documentsMediaGroup: MediaGroup = inputFiles.map(
-      (inputFile, index) => {
-        return {
-          type: 'document',
-          media: inputFile,
-          caption:
-            index === indexOfLastInputFile
-              ? this.getMessageText(text)
-              : undefined,
-          ...this.getMessageOptions(),
-        };
-      }
-    );
-
-    try {
-      await this.sendMediaGroup(documentsMediaGroup);
-      console.log('Document group  was successfully sent');
-    } catch (error) {
-      console.error('Document group was not sent:', error);
-    }
-  }
-
-  private async sendMediaGroup(mediaGroup: MediaGroup) {
-    try {
-      await this.bot.telegram.sendMediaGroup(
-        this.telegramChannelId,
-        mediaGroup
+    for (const channelId of telegramChannelIds) {
+      const documentsMediaGroup: MediaGroup = inputFiles.map(
+        (inputFile, index) => {
+          return {
+            type: 'document',
+            media: inputFile,
+            caption:
+              index === inputFiles.length - 1
+                ? this.getMessageText(post, telegramChannelIds)
+                : undefined,
+            ...this.getMessageOptions(post),
+          };
+        }
       );
-    } catch (error) {
-      throw error;
+
+      try {
+        await this.bot.telegram.sendMediaGroup(
+          channelId.toString(),
+          documentsMediaGroup
+        );
+        console.log(
+          `Document group was successfully sent to channel ${channelId}`
+        );
+      } catch (error) {
+        console.error(
+          `Document group was not sent to channel ${channelId}:`,
+          error
+        );
+      }
     }
   }
 
@@ -217,21 +253,28 @@ export class TelegramPostService {
     }
   }
 
-  private buffersToInputFiles(buffers: Buffer[]) {
-    return buffers.map((buffer) => {
+  private buffersToInputFiles(buffers: Buffer[], filenames: string[]) {
+    return buffers.map((buffer, i) => {
       return {
         source: buffer,
-        filename: 'placeholder',
+        filename: filenames[i],
       };
     });
   }
 
-  private getMessageText(text: string, isNoMedia: boolean = false): string {
-    const sign = this.getMessageSign();
+  private getMessageText(
+    post: PostPayload,
+    telegramChannelIds: bigint[],
+    isNoMedia: boolean = false,
+    specificText?: string
+  ): string {
+    const sign = this.getMessageSign(post);
     const maxLength = isNoMedia
       ? MAX_CHARACTERS_TG_TEXT
       : MAX_CHARACTERS_TG_CAPTION;
     const arrowDownEmoji = '⬇️';
+
+    const text = specificText ? specificText : post.text;
 
     if (!text) return sign;
 
@@ -252,26 +295,34 @@ export class TelegramPostService {
 
     if (remainingText) {
       setTimeout(() => {
-        this.sendTextMessage(remainingText, isNoLinks(remainingText));
+        this.sendTextMessage(
+          post,
+          telegramChannelIds,
+          isNoLinks(remainingText),
+          remainingText
+        );
       }, 10000);
     }
 
     return `${truncatedText} ${arrowDownEmoji}\n\n${sign}`;
   }
 
-  private getMessageOptions(isTurnOffLinkPreview?: boolean): ExtraReplyMessage {
+  private getMessageOptions(
+    post: PostPayload,
+    isTurnOffLinkPreview?: boolean
+  ): ExtraReplyMessage {
     return {
       parse_mode: 'HTML',
       link_preview_options: {
         is_disabled:
           isTurnOffLinkPreview !== undefined
             ? isTurnOffLinkPreview
-            : this.isNoLinks,
+            : isNoLinks(post.text),
       },
     };
   }
 
-  private getMessageSign(): string {
-    return `<a href="${this.post.messageUrl}">Source</a> | ${this.post.channelType}`;
+  private getMessageSign(post: PostPayload): string {
+    return `<a href="${post.messageUrl}">Source</a> | ${post.channelType}`;
   }
 }

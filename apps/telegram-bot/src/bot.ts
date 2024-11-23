@@ -11,24 +11,26 @@ import { createKeyCommand, handleCreateKeySteps } from './commands/createKey';
 import { handleShowKeysSteps, showKeysCommand } from './commands/showKeys';
 import { RABBITMQ_POST_QUEUE_NAME } from '../../../libs/shared/src/constants/constants';
 import {
+  ALL_TELEGRAM_COMMANDS,
   CREATE_TELEGRAM_KEY_BUTTON_COMMAND,
   CREATE_TELEGRAM_KEY_COMMAND,
   SHOW_TELEGRAM_KEYS_BUTTON_COMMAND,
   SHOW_TELEGRAM_KEYS_COMMAND,
 } from './constants/telegramConstants';
+import { prisma } from './services/prismaClient';
 
 let connection: Connection;
 let channel: Channel;
 const bot = new Telegraf(config.telegramBotToken);
+const telegramPostService = new TelegramPostService(bot);
 
 const setupMessageConsumption = (channel: Channel) => {
   channel.consume(RABBITMQ_POST_QUEUE_NAME, async (msg) => {
     if (msg) {
       try {
         const post: PostPayload = JSON.parse(msg.content.toString());
-        await handlePostToTelegram(config.telegramChannelId, post);
+        await handlePostToTelegram(post);
         channel.ack(msg);
-        console.log('Post processed and sent to Telegram');
       } catch (error) {
         console.error('Failed to process message:', error);
       }
@@ -36,24 +38,38 @@ const setupMessageConsumption = (channel: Channel) => {
   });
 };
 
-const handlePostToTelegram = async (
-  telegramChannelId: string,
-  post: PostPayload
-) => {
+const handlePostToTelegram = async (post: PostPayload) => {
   try {
-    const telegramPostService = new TelegramPostService(
-      bot,
-      telegramChannelId,
-      post
+    const discordChannel = await prisma.discordChannel.findUnique({
+      where: { id: post.discordChannelId },
+      include: {
+        uniqueKeys: {
+          select: {
+            telegramChannelId: true,
+          },
+        },
+      },
+    });
+
+    if (!discordChannel || !discordChannel.uniqueKeys.length) {
+      console.error('No Telegram channel IDs from Discord connection');
+      return;
+    }
+
+    const telegramChannelIds = discordChannel.uniqueKeys.map(
+      (key) => key.telegramChannelId
     );
-    await telegramPostService.sendPost();
+    await telegramPostService.sendPost(post, telegramChannelIds);
   } catch (error) {
     console.error('Failed to send post to Telegram:', error);
   }
 };
 
 const handleUserAction = async (ctx: Context) => {
-  if (ctx.message && 'text' in ctx.message) {
+  if (
+    'text' in ctx.message &&
+    ALL_TELEGRAM_COMMANDS.includes(ctx.message.text)
+  ) {
     await handleButtonCommand(ctx);
     return;
   }
@@ -67,12 +83,14 @@ const handleUserAction = async (ctx: Context) => {
 };
 
 const handleButtonCommand = async (ctx: Context) => {
-  if (ctx.message && 'text' in ctx.message) {
+  if ('text' in ctx.message) {
     switch (ctx.message.text) {
       case CREATE_TELEGRAM_KEY_BUTTON_COMMAND:
-        return createKeyCommand(ctx);
+        await createKeyCommand(ctx);
+        return;
       case SHOW_TELEGRAM_KEYS_BUTTON_COMMAND:
-        return showKeysCommand(ctx);
+        await showKeysCommand(ctx);
+        return;
     }
   }
 };

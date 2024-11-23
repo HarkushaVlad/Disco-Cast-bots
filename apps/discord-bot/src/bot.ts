@@ -3,6 +3,7 @@ import {
   Client,
   CommandInteraction,
   GatewayIntentBits,
+  Message,
   StringSelectMenuInteraction,
 } from 'discord.js';
 import { DiscordPostService } from './services/discordPost.service';
@@ -16,6 +17,7 @@ import {
   ALL_MANAGE_COMMAND_BUTTON_IDS,
   MANAGE_COMMAND_SELECT_CONNECTION_ID,
 } from './constants/discordConstants';
+import { prisma } from '../../telegram-bot/src/services/prismaClient';
 
 const client = new Client({
   intents: [
@@ -25,14 +27,16 @@ const client = new Client({
   ],
 });
 
-let connection: Connection;
-let channel: Channel;
+let rabbitConnection: Connection;
+let rabbitChannel: Channel;
+let discordPostService: DiscordPostService;
 
 export const startBot = async () => {
   try {
     await deployBotCommands();
     await initializeRabbitMQ();
     setUpListeners();
+    discordPostService = new DiscordPostService(rabbitChannel);
     await client.login(config.discordBotToken);
     handleGracefulShutdown();
   } catch (error) {
@@ -51,8 +55,9 @@ const deployBotCommands = async () => {
 
 const initializeRabbitMQ = async () => {
   try {
-    if (!connection || !channel) {
-      ({ connection, channel } = await connectToRabbitMQ());
+    if (!rabbitConnection || !rabbitChannel) {
+      ({ connection: rabbitConnection, channel: rabbitChannel } =
+        await connectToRabbitMQ());
       console.log('Connected to RabbitMQ');
     }
   } catch (error) {
@@ -64,14 +69,29 @@ const setUpListeners = () => {
   client.on('messageCreate', handleMessageCreate);
   client.on('interactionCreate', handleInteractionCreate);
   client.once('ready', () => {
-    console.log(`Logged in as ${client.user?.tag}`);
+    console.log(`Logged in as ${client.user?.tag}\n`);
   });
 };
 
-const handleMessageCreate = async (message: any) => {
+const handleMessageCreate = async (message: Message) => {
   try {
-    const discordPostService = new DiscordPostService(message, channel);
-    await discordPostService.sendPost();
+    const existingDiscordChannelRecord = await prisma.discordChannel.findUnique(
+      {
+        where: {
+          discordGuildId_discordChannelId: {
+            discordGuildId: message.guild.id,
+            discordChannelId: message.channel.id,
+          },
+        },
+      }
+    );
+
+    if (existingDiscordChannelRecord) {
+      await discordPostService.sendPost(
+        message,
+        existingDiscordChannelRecord.id
+      );
+    }
   } catch (error) {
     console.error('Error handling messageCreate event', error);
   }
@@ -141,8 +161,8 @@ const handleGracefulShutdown = () => {
 const closeConnections = async () => {
   console.log('Closing RabbitMQ connection...');
   try {
-    if (channel) await channel.close();
-    if (connection) await connection.close();
+    if (rabbitChannel) await rabbitChannel.close();
+    if (rabbitConnection) await rabbitConnection.close();
     console.log('RabbitMQ connection closed.');
   } catch (error) {
     console.error('Error closing RabbitMQ connection', error);

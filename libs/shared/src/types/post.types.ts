@@ -7,4 +7,5 @@ export interface PostPayload {
   medias: Medias;
   messageUrl: string;
   channelType: string;
+  discordChannelId: number;
 }

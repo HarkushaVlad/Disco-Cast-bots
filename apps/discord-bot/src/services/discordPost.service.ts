@@ -9,32 +9,36 @@ import { convertDiscordMarkdownToHTML } from '../../../../libs/shared/src/utils/
 import { sendPostToQueue } from '../../../../libs/shared/src/messaging/rabbitmq';
 
 export class DiscordPostService {
-  private readonly message: Message;
   private readonly channel: Channel;
 
-  constructor(message: Message, channel: Channel) {
-    this.message = message;
+  constructor(channel: Channel) {
     this.channel = channel;
   }
 
-  async sendPost() {
-    const filteredText = convertDiscordMarkdownToHTML(this.message);
-    const medias = this.getMediasFromMessage(this.message);
-    const reference = this.message.reference;
+  async sendPost(message: Message, discordChannelId: number): Promise<void> {
+    const filteredText = convertDiscordMarkdownToHTML(message);
+    const medias = this.getMediasFromMessage(message);
+    const reference = message.reference;
 
     const post: PostPayload = {
       text: filteredText,
       medias,
       messageUrl: reference
         ? `https://discord.com/channels/${reference.guildId}/${reference.channelId}/${reference.messageId}`
-        : this.message.url,
-      channelType: this.getChannelName(),
+        : message.url,
+      channelType: this.getChannelName(message),
+      discordChannelId,
     };
+
+    if (!post.text && this.areMediasEmpty(post.medias)) {
+      console.log(`Message from ${message.channel.id} was empty`);
+      return;
+    }
 
     try {
       await sendPostToQueue(this.channel, post);
       console.log(
-        `Message from ${post.channelType} channel was successfully sent`
+        `Message from ${message.channel.id} channel was successfully sent`
       );
     } catch (error) {
       console.error(
@@ -65,7 +69,7 @@ export class DiscordPostService {
       return 'document';
     }
 
-    if (contentType.includes('video')) {
+    if (contentType.includes('video') && !contentType.includes('charset')) {
       return 'video';
     }
 
@@ -80,16 +84,20 @@ export class DiscordPostService {
     return 'document';
   }
 
-  private getChannelName(): string {
+  private getChannelName(message: Message): string {
     if (
-      this.message.channel.type === ChannelType.GuildText ||
-      this.message.channel.type === ChannelType.GuildAnnouncement ||
-      this.message.channel.type === ChannelType.PublicThread ||
-      this.message.channel.type === ChannelType.PrivateThread
+      message.channel.type === ChannelType.GuildText ||
+      message.channel.type === ChannelType.GuildAnnouncement ||
+      message.channel.type === ChannelType.PublicThread ||
+      message.channel.type === ChannelType.PrivateThread
     ) {
-      return '#' + this.message.channel.name.replace(/-/g, '');
+      return '#' + message.channel.name.replace(/-/g, '');
     }
 
     return '#other';
+  }
+
+  private areMediasEmpty(medias: Medias): boolean {
+    return Object.values(medias).every((mediaArray) => mediaArray.length === 0);
   }
 }
