@@ -18,7 +18,7 @@ model TelegramKey {
   telegramChannelId BigInt           @unique
   uniqueKey         String           @unique
   description       String
-  discordChannels   DiscordChannel[] @relation("ChannelUniqueKey")
+  discordChannels   DiscordChannel[] @relation("DiscordChannelTelegramKey")
   owner             TelegramUser     @relation(fields: [ownerId], references: [id])
 }
 
@@ -27,5 +27,7 @@ model DiscordChannel {
   discordGuildId   String
   discordChannelId String
   name             String
-  uniqueKeys       TelegramKey[] @relation("ChannelUniqueKey")
+  uniqueKeys       TelegramKey[] @relation("DiscordChannelTelegramKey")
+
+  @@unique([discordGuildId, discordChannelId])
 }

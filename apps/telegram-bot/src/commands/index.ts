@@ -5,7 +5,7 @@ import {
   CREATE_TELEGRAM_KEY_COMMAND,
   SHOW_TELEGRAM_KEYS_COMMAND,
   START_TELEGRAM_COMMAND,
-} from '../constants/constants';
+} from '../constants/telegramConstants';
 import { startCommand } from './start';
 
 export const setupCommands = (bot: Telegraf) => {

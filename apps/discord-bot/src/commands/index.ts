@@ -1,3 +1,5 @@
-import { castCommand, DiscordCommand } from './cast';
+import { castCommand } from './cast';
+import { manageCommand } from './manage';
+import { DiscordCommand } from '../types/command.type';
 
-export const commands: DiscordCommand[] = [castCommand];
+export const commands: DiscordCommand[] = [castCommand, manageCommand];

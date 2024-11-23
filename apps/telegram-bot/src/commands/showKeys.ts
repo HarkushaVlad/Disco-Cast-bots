@@ -13,7 +13,7 @@ import {
   KEY_CALLBACK_QUERY_DATA,
   PAGE_CALLBACK_QUERY_DATA,
   SHOW_TELEGRAM_KEYS_COMMAND,
-} from '../constants/constants';
+} from '../constants/telegramConstants';
 import { deleteMessageFromDataIfExist } from '../services/telegramMessage.service';
 
 const KEYS_PER_PAGE = 5;
@@ -204,5 +204,6 @@ export const handleShowKeysSteps = async (
   ctx: Context,
   session: UserSession
 ) => {
-  if ('data' in ctx.callbackQuery) await handleButtonPress(ctx, session);
+  if (ctx.callbackQuery && 'data' in ctx.callbackQuery)
+    await handleButtonPress(ctx, session);
 };

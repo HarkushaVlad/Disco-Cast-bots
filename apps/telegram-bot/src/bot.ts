@@ -15,7 +15,7 @@ import {
   CREATE_TELEGRAM_KEY_COMMAND,
   SHOW_TELEGRAM_KEYS_BUTTON_COMMAND,
   SHOW_TELEGRAM_KEYS_COMMAND,
-} from './constants/constants';
+} from './constants/telegramConstants';
 
 let connection: Connection;
 let channel: Channel;
@@ -26,35 +26,36 @@ const setupMessageConsumption = (channel: Channel) => {
     if (msg) {
       try {
         const post: PostPayload = JSON.parse(msg.content.toString());
-        await handlePost(config.telegramChannelId, post);
+        await handlePostToTelegram(config.telegramChannelId, post);
         channel.ack(msg);
         console.log('Post processed and sent to Telegram');
       } catch (error) {
-        console.error('Failed to process message', error);
+        console.error('Failed to process message:', error);
       }
     }
   });
 };
 
-const handlePost = async (telegramChannelId: string, post: PostPayload) => {
-  const telegramPostService = new TelegramPostService(
-    bot,
-    telegramChannelId,
-    post
-  );
-  await telegramPostService.sendPost();
+const handlePostToTelegram = async (
+  telegramChannelId: string,
+  post: PostPayload
+) => {
+  try {
+    const telegramPostService = new TelegramPostService(
+      bot,
+      telegramChannelId,
+      post
+    );
+    await telegramPostService.sendPost();
+  } catch (error) {
+    console.error('Failed to send post to Telegram:', error);
+  }
 };
 
 const handleUserAction = async (ctx: Context) => {
   if (ctx.message && 'text' in ctx.message) {
-    switch (ctx.message.text) {
-      case CREATE_TELEGRAM_KEY_BUTTON_COMMAND:
-        return createKeyCommand(ctx);
-      case SHOW_TELEGRAM_KEYS_BUTTON_COMMAND:
-        return showKeysCommand(ctx);
-      default:
-        break;
-    }
+    await handleButtonCommand(ctx);
+    return;
   }
 
   const userId = ctx.from.id;
@@ -62,13 +63,26 @@ const handleUserAction = async (ctx: Context) => {
 
   if (!session || !session.command) return;
 
+  await handleSessionSteps(ctx, session);
+};
+
+const handleButtonCommand = async (ctx: Context) => {
+  if (ctx.message && 'text' in ctx.message) {
+    switch (ctx.message.text) {
+      case CREATE_TELEGRAM_KEY_BUTTON_COMMAND:
+        return createKeyCommand(ctx);
+      case SHOW_TELEGRAM_KEYS_BUTTON_COMMAND:
+        return showKeysCommand(ctx);
+    }
+  }
+};
+
+const handleSessionSteps = async (ctx: Context, session: any) => {
   switch (session.command) {
     case CREATE_TELEGRAM_KEY_COMMAND:
       return handleCreateKeySteps(ctx, session);
     case SHOW_TELEGRAM_KEYS_COMMAND:
       return handleShowKeysSteps(ctx, session);
-    default:
-      break;
   }
 };
 
@@ -79,11 +93,11 @@ const closeConnections = async () => {
     if (connection) await connection.close();
     console.log('RabbitMQ connection closed.');
   } catch (error) {
-    console.error('Error while closing RabbitMQ connections', error);
+    console.error('Error while closing RabbitMQ connections:', error);
   }
 
   console.log('Stopping Telegram bot...');
-  await bot.stop();
+  bot.stop();
   process.exit(0);
 };
 
@@ -91,8 +105,8 @@ export const startBot = async () => {
   try {
     ({ connection, channel } = await connectToRabbitMQ());
     setupMessageConsumption(channel);
-
     setupCommands(bot);
+
     bot.on(message(), async (ctx) => handleUserAction(ctx));
     bot.on(callbackQuery(), async (ctx) => handleUserAction(ctx));
 
@@ -100,6 +114,7 @@ export const startBot = async () => {
     console.log('Telegram bot is running\n');
   } catch (error) {
     console.error('Failed to start Telegram bot:', error);
+    process.exit(1);
   }
 
   process.on('SIGINT', closeConnections);

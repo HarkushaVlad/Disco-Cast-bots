@@ -14,7 +14,7 @@ import {
   CREATE_TELEGRAM_KEY_ADD_DESCRIPTION_STEP,
   CREATE_TELEGRAM_KEY_COMMAND,
   CREATE_TELEGRAM_KEY_GET_GROUP_ID_STEP,
-} from '../constants/constants';
+} from '../constants/telegramConstants';
 import { deleteMessageFromDataIfExist } from '../services/telegramMessage.service';
 
 const generateUniqueKey = (length: number): string =>
