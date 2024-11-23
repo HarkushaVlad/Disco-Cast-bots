@@ -16,7 +16,15 @@ export class DiscordPostService {
   }
 
   async sendPost(message: Message, discordChannelId: number): Promise<void> {
-    const filteredText = convertDiscordMarkdownToHTML(message);
+    let filteredText: string;
+    if (message.reference) {
+      filteredText = convertDiscordMarkdownToHTML(
+        await message.fetchReference()
+      );
+    } else {
+      filteredText = convertDiscordMarkdownToHTML(message);
+    }
+
     const medias = this.getMediasFromMessage(message);
     const reference = message.reference;
 
