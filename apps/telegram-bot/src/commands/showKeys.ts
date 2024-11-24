@@ -16,7 +16,7 @@ import {
 } from '../constants/telegramConstants';
 import { deleteMessageFromDataIfExist } from '../services/telegramMessage.service';
 import {
-  DISCORD_CHANNEL_WITH_TG_IDS_REDIS_KEY,
+  DISCORD_GUILD_CHANNELS_REDIS_KEY,
   redisService,
 } from '../../../../libs/shared/src/caching/redis.service';
 
@@ -149,23 +149,33 @@ const handleKeyDeletion = async (
 ) => {
   const key = callbackData.split('_')[1];
   try {
-    const relatedDiscordChannels = await prisma.discordChannel.findMany({
+    const relatedDiscordGuildIds = await prisma.discordChannel.findMany({
       where: {
         uniqueKeys: {
           some: { uniqueKey: key },
+        },
+      },
+      select: {
+        guild: {
+          select: {
+            discordGuildId: true,
+          },
         },
       },
     });
 
     await prisma.telegramKey.delete({ where: { uniqueKey: key } });
 
-    const relatedDiscordChannelIds = relatedDiscordChannels.map(
-      (discordChannel) => {
-        return `${DISCORD_CHANNEL_WITH_TG_IDS_REDIS_KEY}:${discordChannel.discordChannelId}`;
-      }
-    );
+    const discordGuildIds = [
+      ...new Set(
+        relatedDiscordGuildIds.map(
+          (channel) =>
+            `${DISCORD_GUILD_CHANNELS_REDIS_KEY}:${channel.guild.discordGuildId}`
+        )
+      ),
+    ];
 
-    await redisService.delete(...relatedDiscordChannelIds);
+    await redisService.delete(...discordGuildIds);
 
     await ctx.answerCbQuery('✅ Key successfully deleted.');
 

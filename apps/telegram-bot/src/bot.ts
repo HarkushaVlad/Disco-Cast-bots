@@ -19,10 +19,10 @@ import {
 } from './constants/telegramConstants';
 import { prisma } from './services/prismaClient';
 import {
-  DISCORD_CHANNEL_WITH_TG_IDS_REDIS_KEY,
+  DISCORD_GUILD_CHANNELS_REDIS_KEY,
   redisService,
 } from '../../../libs/shared/src/caching/redis.service';
-import { DiscordChannelWithTelegramChannelIds } from '../../../libs/shared/src/types/channel.type';
+import { CachedDiscordChannel } from '../../../libs/shared/src/types/channel.type';
 import { safeJSONStringify } from '../../../libs/shared/src/utils/utils';
 
 let connection: Connection;
@@ -46,41 +46,54 @@ const setupMessageConsumption = (channel: Channel) => {
 
 const handlePostToTelegram = async (post: PostPayload) => {
   try {
-    const cacheKey = `${DISCORD_CHANNEL_WITH_TG_IDS_REDIS_KEY}:${post.discordChannel.discordChannelId}`;
-    const existingDiscordChannel = await redisService.get(cacheKey);
-    let discordChannelRecord: DiscordChannelWithTelegramChannelIds;
+    const cacheKey = `${DISCORD_GUILD_CHANNELS_REDIS_KEY}:${post.discordChannel.guild.discordGuildId}`;
+    const existingDiscordChannelsRecords = await redisService.get(cacheKey);
+    let cachedDiscordChannels: CachedDiscordChannel[];
 
-    if (!existingDiscordChannel) {
-      discordChannelRecord = await prisma.discordChannel.findUnique({
-        where: { id: post.discordChannel.id },
+    if (existingDiscordChannelsRecords) {
+      cachedDiscordChannels = JSON.parse(existingDiscordChannelsRecords);
+    } else {
+      cachedDiscordChannels = await prisma.discordChannel.findMany({
+        where: {
+          guildId: post.discordChannel.guildId,
+          uniqueKeys: { some: {} },
+        },
         include: {
           uniqueKeys: {
             select: {
               telegramChannelId: true,
             },
           },
+          guild: true,
         },
       });
 
-      if (discordChannelRecord) {
-        await redisService.set(
-          cacheKey,
-          safeJSONStringify(discordChannelRecord),
-          60 * 60
-        );
-      }
-    } else {
-      discordChannelRecord = JSON.parse(existingDiscordChannel);
+      await redisService.set(
+        cacheKey,
+        safeJSONStringify(cachedDiscordChannels),
+        60 * 60
+      );
     }
 
-    if (!discordChannelRecord || !discordChannelRecord.uniqueKeys.length) {
-      console.error('No Telegram channel IDs from Discord connection');
+    const channelWithTgKeyInRecords = cachedDiscordChannels.find(
+      (channel) =>
+        channel.discordChannelId === post.discordChannel.discordChannelId
+    );
+
+    if (!channelWithTgKeyInRecords) {
+      console.error('No matching channel found in the cached records');
       return;
     }
 
-    const telegramChannelIds = discordChannelRecord.uniqueKeys.map(
+    if (!channelWithTgKeyInRecords.uniqueKeys.length) {
+      console.error('No Telegram channel IDs for the Discord channel');
+      return;
+    }
+
+    const telegramChannelIds = channelWithTgKeyInRecords.uniqueKeys.map(
       (key) => key.telegramChannelId
     );
+
     await telegramPostService.sendPost(post, telegramChannelIds);
   } catch (error) {
     console.error('Failed to send post to Telegram:', error);

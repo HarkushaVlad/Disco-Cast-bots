@@ -11,7 +11,7 @@ import {
   CAST_COMMAND_TELEGRAM_KEY_OPTION,
 } from '../constants/discordConstants';
 import {
-  DISCORD_CHANNEL_WITH_TG_IDS_REDIS_KEY,
+  DISCORD_GUILD_CHANNELS_REDIS_KEY,
   redisService,
 } from '../../../../libs/shared/src/caching/redis.service';
 
@@ -125,7 +125,7 @@ export const castCommand = {
       });
 
       await redisService.delete(
-        `${DISCORD_CHANNEL_WITH_TG_IDS_REDIS_KEY}:${discordChannelRecord.discordChannelId}`
+        `${DISCORD_GUILD_CHANNELS_REDIS_KEY}:${interaction.guild.id}`
       );
 
       await interaction.reply({

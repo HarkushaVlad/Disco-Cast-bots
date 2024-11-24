@@ -7,7 +7,7 @@ import {
 import { Channel } from 'amqplib';
 import { convertDiscordMarkdownToHTML } from '../../../../libs/shared/src/utils/filters';
 import { sendPostToQueue } from '../../../../libs/shared/src/messaging/rabbitmq';
-import { DiscordChannel } from '@prisma/client';
+import { CachedDiscordChannel } from '../../../../libs/shared/src/types/channel.type';
 
 export class DiscordPostService {
   private readonly channel: Channel;
@@ -18,7 +18,7 @@ export class DiscordPostService {
 
   async sendPost(
     message: Message,
-    discordChannel: DiscordChannel
+    discordChannel: CachedDiscordChannel
   ): Promise<void> {
     let filteredText: string;
     if (message.reference) {

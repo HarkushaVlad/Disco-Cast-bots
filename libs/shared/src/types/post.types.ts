@@ -1,4 +1,4 @@
-import { DiscordChannel } from '@prisma/client';
+import { CachedDiscordChannel } from './channel.type';
 
 export type MediaType = 'photo' | 'video' | 'animation' | 'document';
 
@@ -9,5 +9,5 @@ export interface PostPayload {
   medias: Medias;
   messageUrl: string;
   channelType: string;
-  discordChannel: DiscordChannel;
+  discordChannel: CachedDiscordChannel;
 }

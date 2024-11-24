@@ -21,6 +21,7 @@ import {
 } from '../constants/discordConstants';
 import {
   DISCORD_CHANNEL_WITH_TG_IDS_REDIS_KEY,
+  DISCORD_GUILD_CHANNELS_REDIS_KEY,
   redisService,
 } from '../../../../libs/shared/src/caching/redis.service';
 
@@ -338,7 +339,7 @@ export const manageCommand = {
         });
 
         await redisService.delete(
-          `${DISCORD_CHANNEL_WITH_TG_IDS_REDIS_KEY}:${convertedDiscordChannelId}`
+          `${DISCORD_GUILD_CHANNELS_REDIS_KEY}:${interaction.guild.id}`
         );
 
         const buttonsRow = new ActionRowBuilder<ButtonBuilder>().addComponents(

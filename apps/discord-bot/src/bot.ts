@@ -19,10 +19,10 @@ import {
 } from './constants/discordConstants';
 import { prisma } from '../../telegram-bot/src/services/prismaClient';
 import {
-  DISCORD_CHANNEL_WITH_TG_IDS_REDIS_KEY,
+  DISCORD_GUILD_CHANNELS_REDIS_KEY,
   redisService,
 } from '../../../libs/shared/src/caching/redis.service';
-import { DiscordChannelWithTelegramChannelIds } from '../../../libs/shared/src/types/channel.type';
+import { CachedDiscordChannel } from '../../../libs/shared/src/types/channel.type';
 import { safeJSONStringify } from '../../../libs/shared/src/utils/utils';
 
 const client = new Client({
@@ -68,14 +68,22 @@ const setUpListeners = () => {
 
 const handleMessageCreate = async (message: Message) => {
   try {
-    const cacheKey = `${DISCORD_CHANNEL_WITH_TG_IDS_REDIS_KEY}:${message.channel.id}`;
-    const existingDiscordChannelRecord = await redisService.get(cacheKey);
-    let discordChannelRecord: DiscordChannelWithTelegramChannelIds;
+    const cacheKey = `${DISCORD_GUILD_CHANNELS_REDIS_KEY}:${message.guild.id}`;
+    const existingDiscordChannelsRecords = await redisService.get(cacheKey);
+    let cachedDiscordChannels: CachedDiscordChannel[];
 
-    if (!existingDiscordChannelRecord) {
-      discordChannelRecord = await prisma.discordChannel.findUnique({
+    if (existingDiscordChannelsRecords) {
+      cachedDiscordChannels = JSON.parse(existingDiscordChannelsRecords);
+    } else {
+      console.log('ti loh');
+      cachedDiscordChannels = await prisma.discordChannel.findMany({
         where: {
-          discordChannelId: message.channel.id,
+          guild: {
+            discordGuildId: message.guild.id,
+          },
+          uniqueKeys: {
+            some: {},
+          },
         },
         include: {
           uniqueKeys: {
@@ -83,26 +91,30 @@ const handleMessageCreate = async (message: Message) => {
               telegramChannelId: true,
             },
           },
+          guild: {
+            select: {
+              discordGuildId: true,
+            },
+          },
         },
       });
 
-      if (discordChannelRecord && discordChannelRecord.uniqueKeys[0]) {
-        await redisService.set(
-          cacheKey,
-          safeJSONStringify(discordChannelRecord),
-          60 * 60
-        );
-      }
-    } else {
-      discordChannelRecord = JSON.parse(existingDiscordChannelRecord);
+      await redisService.set(
+        cacheKey,
+        safeJSONStringify(cachedDiscordChannels),
+        60 * 60
+      );
     }
 
-    if (discordChannelRecord && discordChannelRecord.uniqueKeys[0]) {
-      const { uniqueKeys, ...discordChannel } = discordChannelRecord;
-      await discordPostService.sendPost(message, discordChannel);
-    }
+    const cachedDiscordChannel = cachedDiscordChannels.find(
+      (channel) => channel.discordChannelId === message.channel.id
+    );
+
+    if (!cachedDiscordChannel) return;
+
+    await discordPostService.sendPost(message, cachedDiscordChannel);
   } catch (error) {
-    console.error('Error handling messageCreate event', error);
+    console.error('Error handling messageCreate event:', error);
   }
 };
 
