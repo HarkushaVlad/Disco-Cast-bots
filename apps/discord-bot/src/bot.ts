@@ -37,19 +37,6 @@ let rabbitConnection: Connection;
 let rabbitChannel: Channel;
 let discordPostService: DiscordPostService;
 
-export const startBot = async () => {
-  try {
-    await deployBotCommands();
-    await initializeRabbitMQ();
-    setUpListeners();
-    discordPostService = new DiscordPostService(rabbitChannel);
-    await client.login(config.discordBotToken);
-    handleGracefulShutdown();
-  } catch (error) {
-    console.error('Failed to start the bot', error);
-  }
-};
-
 const deployBotCommands = async () => {
   try {
     await deployCommands();
@@ -172,6 +159,24 @@ const handleButtonInteraction = async (interaction: ButtonInteraction) => {
       content: 'Unknown action.',
       ephemeral: true,
     });
+  }
+};
+
+export const startBot = async () => {
+  try {
+    await deployBotCommands();
+    await initializeRabbitMQ();
+    setUpListeners();
+
+    console.log('Flush all keys in Redis on start...');
+    await redisService.flush();
+
+    discordPostService = new DiscordPostService(rabbitChannel);
+    await client.login(config.discordBotToken);
+
+    handleGracefulShutdown();
+  } catch (error) {
+    console.error('Failed to start the bot', error);
   }
 };
 

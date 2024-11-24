@@ -127,6 +127,30 @@ const handleSessionSteps = async (ctx: Context, session: any) => {
   }
 };
 
+export const startBot = async () => {
+  try {
+    ({ connection, channel } = await connectToRabbitMQ());
+    setupMessageConsumption(channel);
+
+    console.log('Flush all keys in Redis on start...');
+    await redisService.flush();
+
+    setupCommands(bot);
+
+    bot.on(message(), async (ctx) => handleUserAction(ctx));
+    bot.on(callbackQuery(), async (ctx) => handleUserAction(ctx));
+
+    bot.launch();
+    console.log('Telegram bot is running\n');
+  } catch (error) {
+    console.error('Failed to start Telegram bot:', error);
+    process.exit(1);
+  }
+
+  process.on('SIGINT', closeConnections);
+  process.on('SIGTERM', closeConnections);
+};
+
 const closeConnections = async () => {
   console.log('Closing RabbitMQ connection...');
   try {
@@ -143,26 +167,6 @@ const closeConnections = async () => {
   console.log('Stopping Telegram bot...');
   bot.stop();
   process.exit(0);
-};
-
-export const startBot = async () => {
-  try {
-    ({ connection, channel } = await connectToRabbitMQ());
-    setupMessageConsumption(channel);
-    setupCommands(bot);
-
-    bot.on(message(), async (ctx) => handleUserAction(ctx));
-    bot.on(callbackQuery(), async (ctx) => handleUserAction(ctx));
-
-    bot.launch();
-    console.log('Telegram bot is running\n');
-  } catch (error) {
-    console.error('Failed to start Telegram bot:', error);
-    process.exit(1);
-  }
-
-  process.on('SIGINT', closeConnections);
-  process.on('SIGTERM', closeConnections);
 };
 
 export type TgBot = typeof bot;
