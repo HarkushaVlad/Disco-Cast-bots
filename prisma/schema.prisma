@@ -25,9 +25,7 @@ model TelegramKey {
 model DiscordChannel {
   id               Int           @id @default(autoincrement())
   discordGuildId   String
-  discordChannelId String
+  discordChannelId String        @unique
   name             String
   uniqueKeys       TelegramKey[] @relation("DiscordChannelTelegramKey")
-
-  @@unique([discordGuildId, discordChannelId])
 }

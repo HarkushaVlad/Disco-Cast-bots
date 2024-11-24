@@ -18,6 +18,12 @@ import {
   SHOW_TELEGRAM_KEYS_COMMAND,
 } from './constants/telegramConstants';
 import { prisma } from './services/prismaClient';
+import {
+  DISCORD_CHANNEL_WITH_TG_IDS_REDIS_KEY,
+  redisService,
+} from '../../../libs/shared/src/caching/redis.service';
+import { DiscordChannelWithTelegramChannelIds } from '../../../libs/shared/src/types/channel.type';
+import { safeJSONStringify } from '../../../libs/shared/src/utils/utils';
 
 let connection: Connection;
 let channel: Channel;
@@ -40,23 +46,39 @@ const setupMessageConsumption = (channel: Channel) => {
 
 const handlePostToTelegram = async (post: PostPayload) => {
   try {
-    const discordChannel = await prisma.discordChannel.findUnique({
-      where: { id: post.discordChannelId },
-      include: {
-        uniqueKeys: {
-          select: {
-            telegramChannelId: true,
+    const cacheKey = `${DISCORD_CHANNEL_WITH_TG_IDS_REDIS_KEY}:${post.discordChannel.discordChannelId}`;
+    const existingDiscordChannel = await redisService.get(cacheKey);
+    let discordChannelRecord: DiscordChannelWithTelegramChannelIds;
+
+    if (!existingDiscordChannel) {
+      discordChannelRecord = await prisma.discordChannel.findUnique({
+        where: { id: post.discordChannel.id },
+        include: {
+          uniqueKeys: {
+            select: {
+              telegramChannelId: true,
+            },
           },
         },
-      },
-    });
+      });
 
-    if (!discordChannel || !discordChannel.uniqueKeys.length) {
+      if (discordChannelRecord) {
+        await redisService.set(
+          cacheKey,
+          safeJSONStringify(discordChannelRecord),
+          60 * 60
+        );
+      }
+    } else {
+      discordChannelRecord = JSON.parse(existingDiscordChannel);
+    }
+
+    if (!discordChannelRecord || !discordChannelRecord.uniqueKeys.length) {
       console.error('No Telegram channel IDs from Discord connection');
       return;
     }
 
-    const telegramChannelIds = discordChannel.uniqueKeys.map(
+    const telegramChannelIds = discordChannelRecord.uniqueKeys.map(
       (key) => key.telegramChannelId
     );
     await telegramPostService.sendPost(post, telegramChannelIds);
@@ -67,6 +89,7 @@ const handlePostToTelegram = async (post: PostPayload) => {
 
 const handleUserAction = async (ctx: Context) => {
   if (
+    ctx.message &&
     'text' in ctx.message &&
     ALL_TELEGRAM_COMMANDS.includes(ctx.message.text)
   ) {
@@ -113,6 +136,9 @@ const closeConnections = async () => {
   } catch (error) {
     console.error('Error while closing RabbitMQ connections:', error);
   }
+
+  console.log('Flush all keys in Redis...');
+  await redisService.flush();
 
   console.log('Stopping Telegram bot...');
   bot.stop();

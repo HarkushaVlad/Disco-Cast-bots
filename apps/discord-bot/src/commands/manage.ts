@@ -10,7 +10,7 @@ import {
   StringSelectMenuInteraction,
 } from 'discord.js';
 import { prisma } from '../../../telegram-bot/src/services/prismaClient';
-import { DiscordChannelConnection } from '../../../../libs/shared/src/types/channelConnection.type';
+import { DiscordChannelConnection } from '../../../../libs/shared/src/types/channel.type';
 import {
   MANAGE_COMMAND_CHANNEL_OPTION,
   MANAGE_COMMAND_DELETE_BUTTON_ID,
@@ -19,6 +19,10 @@ import {
   MANAGE_COMMAND_SELECT_CONNECTION_ID,
   MANAGE_COMMAND_UPDATE_BUTTON_ID,
 } from '../constants/discordConstants';
+import {
+  DISCORD_CHANNEL_WITH_TG_IDS_REDIS_KEY,
+  redisService,
+} from '../../../../libs/shared/src/caching/redis.service';
 
 interface SelectConnectionValue {
   discordChannelRecordId: string;
@@ -217,7 +221,7 @@ export const manageCommand = {
           .setStyle(ButtonStyle.Secondary),
         new ButtonBuilder()
           .setCustomId(
-            `${MANAGE_COMMAND_DELETE_BUTTON_ID}&${connection.id}&${connection.uniqueKeys[0].id}`
+            `${MANAGE_COMMAND_DELETE_BUTTON_ID}&${connection.discordChannelId}&${connection.uniqueKeys[0].id}`
           )
           .setLabel('Delete')
           .setStyle(ButtonStyle.Danger)
@@ -305,10 +309,13 @@ export const manageCommand = {
       ) {
         await interaction.deferUpdate();
 
-        const convertedDiscordChannelId = Number(firstButtonArg);
+        const convertedDiscordChannelId = firstButtonArg;
         const convertedTelegramKeyId = Number(secondButtonArg);
 
-        if (isNaN(convertedDiscordChannelId) || isNaN(convertedTelegramKeyId)) {
+        if (
+          isNaN(Number(convertedDiscordChannelId)) ||
+          isNaN(convertedTelegramKeyId)
+        ) {
           await interaction.editReply({
             content: '❌ Invalid or deprecated connection',
             components: [],
@@ -318,7 +325,7 @@ export const manageCommand = {
 
         await prisma.discordChannel.update({
           where: {
-            id: convertedDiscordChannelId,
+            discordChannelId: convertedDiscordChannelId,
           },
           data: {
             uniqueKeys: {
@@ -328,6 +335,10 @@ export const manageCommand = {
             },
           },
         });
+
+        await redisService.delete(
+          `${DISCORD_CHANNEL_WITH_TG_IDS_REDIS_KEY}:${convertedDiscordChannelId}`
+        );
 
         const buttonsRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
           new ButtonBuilder()

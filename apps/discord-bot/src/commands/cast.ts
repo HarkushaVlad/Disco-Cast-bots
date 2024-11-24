@@ -10,6 +10,10 @@ import {
   CAST_COMMAND_NAME,
   CAST_COMMAND_TELEGRAM_KEY_OPTION,
 } from '../constants/discordConstants';
+import {
+  DISCORD_CHANNEL_WITH_TG_IDS_REDIS_KEY,
+  redisService,
+} from '../../../../libs/shared/src/caching/redis.service';
 
 export const castCommand = {
   data: new SlashCommandBuilder()
@@ -35,7 +39,7 @@ export const castCommand = {
     const telegramKey = interaction.options.get(
       CAST_COMMAND_TELEGRAM_KEY_OPTION
     ).value as string;
-    const channel = interaction.options.get('channel').channel;
+    const discordChannel = interaction.options.get('channel').channel;
 
     if (!telegramKey || telegramKey.length !== 16) {
       await interaction.reply({
@@ -61,10 +65,7 @@ export const castCommand = {
 
     const existingChannelRecord = await prisma.discordChannel.findUnique({
       where: {
-        discordGuildId_discordChannelId: {
-          discordGuildId: interaction.guild.id,
-          discordChannelId: channel.id,
-        },
+        discordChannelId: discordChannel.id,
       },
     });
 
@@ -73,8 +74,8 @@ export const castCommand = {
       discordChannelRecord = await prisma.discordChannel.create({
         data: {
           discordGuildId: interaction.guild.id,
-          discordChannelId: channel.id,
-          name: channel.name,
+          discordChannelId: discordChannel.id,
+          name: discordChannel.name,
         },
       });
     } else {
@@ -92,7 +93,7 @@ export const castCommand = {
 
     if (existingConnection) {
       await interaction.reply({
-        content: `✅ <#${channel.id}> is already linked to the Telegram channel (${telegramKeyRecord.description})`,
+        content: `✅ <#${discordChannel.id}> is already linked to the Telegram channel (${telegramKeyRecord.description})`,
         ephemeral: true,
       });
     } else {
@@ -107,8 +108,12 @@ export const castCommand = {
         },
       });
 
+      await redisService.delete(
+        `${DISCORD_CHANNEL_WITH_TG_IDS_REDIS_KEY}:${discordChannelRecord.discordChannelId}`
+      );
+
       await interaction.reply({
-        content: `✅ Successfully linked <#${channel.id}> with the Telegram channel (${telegramKeyRecord.description})!`,
+        content: `✅ Successfully linked <#${discordChannel.id}> with the Telegram channel (${telegramKeyRecord.description})!`,
         ephemeral: true,
       });
     }

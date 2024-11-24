@@ -7,6 +7,7 @@ import {
 import { Channel } from 'amqplib';
 import { convertDiscordMarkdownToHTML } from '../../../../libs/shared/src/utils/filters';
 import { sendPostToQueue } from '../../../../libs/shared/src/messaging/rabbitmq';
+import { DiscordChannel } from '@prisma/client';
 
 export class DiscordPostService {
   private readonly channel: Channel;
@@ -15,7 +16,10 @@ export class DiscordPostService {
     this.channel = channel;
   }
 
-  async sendPost(message: Message, discordChannelId: number): Promise<void> {
+  async sendPost(
+    message: Message,
+    discordChannel: DiscordChannel
+  ): Promise<void> {
     let filteredText: string;
     if (message.reference) {
       filteredText = convertDiscordMarkdownToHTML(
@@ -35,7 +39,7 @@ export class DiscordPostService {
         ? `https://discord.com/channels/${reference.guildId}/${reference.channelId}/${reference.messageId}`
         : message.url,
       channelType: this.getChannelName(message),
-      discordChannelId,
+      discordChannel,
     };
 
     if (!post.text && this.areMediasEmpty(post.medias)) {

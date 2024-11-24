@@ -7,3 +7,7 @@ export type DiscordChannelConnection = {
 export type TelegramChannelConnection = {
   DiscordChannels: DiscordChannel[];
 } & TelegramKey;
+
+export type DiscordChannelWithTelegramChannelIds = {
+  uniqueKeys: { telegramChannelId: bigint }[];
+} & DiscordChannel;

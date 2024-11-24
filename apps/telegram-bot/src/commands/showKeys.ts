@@ -15,6 +15,10 @@ import {
   SHOW_TELEGRAM_KEYS_COMMAND,
 } from '../constants/telegramConstants';
 import { deleteMessageFromDataIfExist } from '../services/telegramMessage.service';
+import {
+  DISCORD_CHANNEL_WITH_TG_IDS_REDIS_KEY,
+  redisService,
+} from '../../../../libs/shared/src/caching/redis.service';
 
 const KEYS_PER_PAGE = 5;
 
@@ -145,7 +149,24 @@ const handleKeyDeletion = async (
 ) => {
   const key = callbackData.split('_')[1];
   try {
+    const relatedDiscordChannels = await prisma.discordChannel.findMany({
+      where: {
+        uniqueKeys: {
+          some: { uniqueKey: key },
+        },
+      },
+    });
+
     await prisma.telegramKey.delete({ where: { uniqueKey: key } });
+
+    const relatedDiscordChannelIds = relatedDiscordChannels.map(
+      (discordChannel) => {
+        return `${DISCORD_CHANNEL_WITH_TG_IDS_REDIS_KEY}:${discordChannel.discordChannelId}`;
+      }
+    );
+
+    await redisService.delete(...relatedDiscordChannelIds);
+
     await ctx.answerCbQuery('✅ Key successfully deleted.');
 
     const totalKeys = await getTotalKeys(ownerId);

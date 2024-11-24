@@ -18,6 +18,12 @@ import {
   MANAGE_COMMAND_SELECT_CONNECTION_ID,
 } from './constants/discordConstants';
 import { prisma } from '../../telegram-bot/src/services/prismaClient';
+import {
+  DISCORD_CHANNEL_WITH_TG_IDS_REDIS_KEY,
+  redisService,
+} from '../../../libs/shared/src/caching/redis.service';
+import { DiscordChannelWithTelegramChannelIds } from '../../../libs/shared/src/types/channel.type';
+import { safeJSONStringify } from '../../../libs/shared/src/utils/utils';
 
 const client = new Client({
   intents: [
@@ -75,22 +81,38 @@ const setUpListeners = () => {
 
 const handleMessageCreate = async (message: Message) => {
   try {
-    const existingDiscordChannelRecord = await prisma.discordChannel.findUnique(
-      {
+    const cacheKey = `${DISCORD_CHANNEL_WITH_TG_IDS_REDIS_KEY}:${message.channel.id}`;
+    const existingDiscordChannelRecord = await redisService.get(cacheKey);
+    let discordChannelRecord: DiscordChannelWithTelegramChannelIds;
+
+    if (!existingDiscordChannelRecord) {
+      discordChannelRecord = await prisma.discordChannel.findUnique({
         where: {
-          discordGuildId_discordChannelId: {
-            discordGuildId: message.guild.id,
-            discordChannelId: message.channel.id,
+          discordChannelId: message.channel.id,
+        },
+        include: {
+          uniqueKeys: {
+            select: {
+              telegramChannelId: true,
+            },
           },
         },
-      }
-    );
+      });
 
-    if (existingDiscordChannelRecord) {
-      await discordPostService.sendPost(
-        message,
-        existingDiscordChannelRecord.id
-      );
+      if (discordChannelRecord && discordChannelRecord.uniqueKeys[0]) {
+        await redisService.set(
+          cacheKey,
+          safeJSONStringify(discordChannelRecord),
+          60 * 60
+        );
+      }
+    } else {
+      discordChannelRecord = JSON.parse(existingDiscordChannelRecord);
+    }
+
+    if (discordChannelRecord && discordChannelRecord.uniqueKeys[0]) {
+      const { uniqueKeys, ...discordChannel } = discordChannelRecord;
+      await discordPostService.sendPost(message, discordChannel);
     }
   } catch (error) {
     console.error('Error handling messageCreate event', error);
@@ -167,6 +189,9 @@ const closeConnections = async () => {
   } catch (error) {
     console.error('Error closing RabbitMQ connection', error);
   }
+
+  console.log('Flush all keys in Redis...');
+  await redisService.flush();
 
   console.log('Stopping Discord bot...');
   await client.destroy();
