@@ -14,18 +14,26 @@ model TelegramUser {
 
 model TelegramKey {
   id                Int              @id @default(autoincrement())
-  ownerId           Int
-  telegramChannelId BigInt           @unique
   uniqueKey         String           @unique
+  telegramChannelId BigInt           @unique
   description       String
+  ownerId           Int
   discordChannels   DiscordChannel[] @relation("DiscordChannelTelegramKey")
   owner             TelegramUser     @relation(fields: [ownerId], references: [id])
 }
 
+model DiscordGuild {
+  id             Int              @id @default(autoincrement())
+  discordGuildId String           @unique
+  name           String
+  channels       DiscordChannel[]
+}
+
 model DiscordChannel {
   id               Int           @id @default(autoincrement())
-  discordGuildId   String
   discordChannelId String        @unique
+  guildId          Int
   name             String
   uniqueKeys       TelegramKey[] @relation("DiscordChannelTelegramKey")
+  guild            DiscordGuild  @relation(fields: [guildId], references: [id])
 }

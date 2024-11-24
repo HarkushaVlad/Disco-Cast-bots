@@ -50,16 +50,15 @@ const getSelectMenu = (connections: DiscordChannelConnection[]) => {
 };
 
 const getDiscordChannelConnections = async (
-  guildId: string,
-  channelId?: string
+  discordGuildId: string,
+  discordChannelId?: string
 ): Promise<DiscordChannelConnection[]> => {
   try {
-    if (channelId) {
+    if (discordChannelId) {
       return [
-        await prisma.discordChannel.findFirst({
+        await prisma.discordChannel.findUnique({
           where: {
-            discordChannelId: channelId,
-            discordGuildId: guildId,
+            discordChannelId: discordChannelId,
             uniqueKeys: {
               some: {},
             },
@@ -71,7 +70,9 @@ const getDiscordChannelConnections = async (
 
     return prisma.discordChannel.findMany({
       where: {
-        discordGuildId: guildId,
+        guild: {
+          discordGuildId: discordGuildId,
+        },
         uniqueKeys: {
           some: {},
         },

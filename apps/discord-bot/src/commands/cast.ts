@@ -71,9 +71,25 @@ export const castCommand = {
 
     let discordChannelRecord: DiscordChannel;
     if (!existingChannelRecord) {
+      const discordGuildId = interaction.guild.id;
+      const discordGuildName = interaction.guild.name;
+
+      let discordGuildRecord = await prisma.discordGuild.findUnique({
+        where: { discordGuildId },
+      });
+
+      if (!discordGuildRecord) {
+        discordGuildRecord = await prisma.discordGuild.create({
+          data: {
+            discordGuildId,
+            name: discordGuildName,
+          },
+        });
+      }
+
       discordChannelRecord = await prisma.discordChannel.create({
         data: {
-          discordGuildId: interaction.guild.id,
+          guildId: discordGuildRecord.id,
           discordChannelId: discordChannel.id,
           name: discordChannel.name,
         },
