@@ -23,19 +23,19 @@ import {
 const KEYS_PER_PAGE = 5;
 
 export const showKeysCommand = async (ctx: Context) => {
-  const ownerId = ctx.from.id;
+  const userId = ctx.from.id;
   const session = await getUserSession(ctx.from.id);
 
   deleteMessageFromDataIfExist(ctx, session);
-  await setUserSession(ownerId, SHOW_TELEGRAM_KEYS_COMMAND);
+  await setUserSession(userId, SHOW_TELEGRAM_KEYS_COMMAND);
 
-  const totalKeys = await getTotalKeys(ownerId);
+  const totalKeys = await getTotalKeys(userId);
   if (totalKeys === 0) {
     ctx.reply('ℹ You do not have any keys.');
     return;
   }
 
-  const userKeys = await getKeysPage(ownerId);
+  const userKeys = await getKeysPage(userId);
   await displayKeysPage(ctx, userKeys, 0, totalKeys);
 };
 
@@ -128,24 +128,24 @@ const handleButtonPress = async (ctx: Context, session: UserSession) => {
   const callbackData = ctx.callbackQuery.data;
   if (!callbackData) return;
 
-  const ownerId = ctx.from.id;
+  const userId = ctx.from.id;
 
   if (callbackData.startsWith(PAGE_CALLBACK_QUERY_DATA + '_')) {
     const pageIndex = parseInt(callbackData.split('_')[1], 10);
-    const totalKeys = session.data.totalKeys || (await getTotalKeys(ownerId));
-    const userKeys = await getKeysPage(ownerId, pageIndex * KEYS_PER_PAGE);
+    const totalKeys = session.data.totalKeys || (await getTotalKeys(userId));
+    const userKeys = await getKeysPage(userId, pageIndex * KEYS_PER_PAGE);
     await displayKeysPage(ctx, userKeys, pageIndex, totalKeys);
   } else if (callbackData.startsWith(KEY_CALLBACK_QUERY_DATA + '_')) {
     await displayKeyDetails(ctx);
   } else if (callbackData.startsWith(DELETE_CALLBACK_QUERY_DATA + '_')) {
-    await handleKeyDeletion(ctx, callbackData, ownerId);
+    await handleKeyDeletion(ctx, callbackData, userId);
   }
 };
 
 const handleKeyDeletion = async (
   ctx: Context,
   callbackData: string,
-  ownerId: number
+  userId: number
 ) => {
   const key = callbackData.split('_')[1];
   try {
@@ -183,7 +183,7 @@ const handleKeyDeletion = async (
 
     await ctx.answerCbQuery('✅ Key successfully deleted.');
 
-    const totalKeys = await getTotalKeys(ownerId);
+    const totalKeys = await getTotalKeys(userId);
     if (totalKeys === 0) {
       await ctx.editMessageText('ℹ You do not have any keys.', {
         parse_mode: 'HTML',
@@ -191,7 +191,7 @@ const handleKeyDeletion = async (
       return;
     }
 
-    const userKeys = await getKeysPage(ownerId);
+    const userKeys = await getKeysPage(userId);
     await displayKeysPage(ctx, userKeys, 0, totalKeys);
   } catch (error) {
     console.error('Error deleting key:', error);
@@ -222,9 +222,13 @@ const displayKeyDetails = async (ctx: Context) => {
   );
 };
 
-const getKeysPage = async (ownerId: number, skip = 0) =>
+const getKeysPage = async (userId: number, skip = 0) =>
   prisma.telegramKey.findMany({
-    where: { ownerId },
+    where: {
+      owner: {
+        userId,
+      },
+    },
     skip,
     take: KEYS_PER_PAGE,
     orderBy: { description: 'asc' },

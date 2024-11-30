@@ -72,7 +72,6 @@ export const castCommand = {
     let discordChannelRecord: DiscordChannel;
     if (!existingChannelRecord) {
       const discordGuildId = interaction.guild.id;
-      const discordGuildName = interaction.guild.name;
 
       let discordGuildRecord = await prisma.discordGuild.findUnique({
         where: { discordGuildId },
@@ -82,7 +81,8 @@ export const castCommand = {
         discordGuildRecord = await prisma.discordGuild.create({
           data: {
             discordGuildId,
-            name: discordGuildName,
+            name: interaction.guild.name,
+            preferredLocale: interaction.guild.preferredLocale,
           },
         });
       }

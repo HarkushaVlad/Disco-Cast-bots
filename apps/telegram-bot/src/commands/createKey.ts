@@ -148,7 +148,7 @@ const createKey = async (
   description: string
 ) => {
   const uniqueKey = generateUniqueKey(8);
-  const telegramUser = await getOrCreateTelegramUser(ctx.from.id);
+  const telegramUser = await getOrCreateTelegramUser(ctx);
 
   try {
     const newKey = await prisma.telegramKey.create({
