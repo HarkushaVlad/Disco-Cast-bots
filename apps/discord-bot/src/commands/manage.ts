@@ -274,6 +274,10 @@ export const manageCommand = {
 
           const manageButtonsRow = getManageButtonsRow(updatedLink);
 
+          await redisService.delete(
+            `${DISCORD_GUILD_CHANNELS_REDIS_KEY}:${interaction.guild.id}`
+          );
+
           await interaction.editReply({
             content: interaction.message.content,
             components: [manageButtonsRow],
@@ -318,6 +322,10 @@ export const manageCommand = {
 
           const manageButtonsRow = getManageButtonsRow(updatedLink);
 
+          await redisService.delete(
+            `${DISCORD_GUILD_CHANNELS_REDIS_KEY}:${interaction.guild.id}`
+          );
+
           await interaction.editReply({
             content: interaction.message.content,
             components: [manageButtonsRow],
@@ -361,6 +369,10 @@ export const manageCommand = {
           });
 
           const manageButtonsRow = getManageButtonsRow(updatedLink);
+
+          await redisService.delete(
+            `${DISCORD_GUILD_CHANNELS_REDIS_KEY}:${interaction.guild.id}`
+          );
 
           await interaction.editReply({
             content: interaction.message.content,
