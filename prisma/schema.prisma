@@ -46,7 +46,7 @@ model ChannelsLink {
   withHashtag            Boolean @default(false)
   withMention            Boolean @default(false)
 
-  telegramKey    TelegramKey    @relation(fields: [telegramKeyRecordId], references: [id])
+  telegramKey    TelegramKey    @relation(fields: [telegramKeyRecordId], references: [id], onDelete: Cascade)
   discordChannel DiscordChannel @relation(fields: [discordChannelRecordId], references: [id])
 
   @@unique([telegramKeyRecordId, discordChannelRecordId])
