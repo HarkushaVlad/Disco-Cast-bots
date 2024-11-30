@@ -13,13 +13,13 @@ model TelegramUser {
 }
 
 model TelegramKey {
-  id                Int              @id @default(autoincrement())
-  uniqueKey         String           @unique
-  telegramChannelId BigInt           @unique
+  id                Int            @id @default(autoincrement())
+  uniqueKey         String         @unique
+  telegramChannelId BigInt         @unique
   description       String
   ownerId           Int
-  discordChannels   DiscordChannel[] @relation("DiscordChannelTelegramKey")
-  owner             TelegramUser     @relation(fields: [ownerId], references: [id])
+  owner             TelegramUser   @relation(fields: [ownerId], references: [id])
+  channelLinks      ChannelsLink[]
 }
 
 model DiscordGuild {
@@ -30,10 +30,24 @@ model DiscordGuild {
 }
 
 model DiscordChannel {
-  id               Int           @id @default(autoincrement())
-  discordChannelId String        @unique
+  id               Int            @id @default(autoincrement())
+  discordChannelId String         @unique
   guildId          Int
   name             String
-  uniqueKeys       TelegramKey[] @relation("DiscordChannelTelegramKey")
-  guild            DiscordGuild  @relation(fields: [guildId], references: [id])
+  guild            DiscordGuild   @relation(fields: [guildId], references: [id])
+  channelLinks     ChannelsLink[]
+}
+
+model ChannelsLink {
+  id                     Int     @id @default(autoincrement())
+  telegramKeyRecordId    Int
+  discordChannelRecordId Int
+  withSource             Boolean @default(false)
+  withHashtag            Boolean @default(false)
+  withMention            Boolean @default(false)
+
+  telegramKey    TelegramKey    @relation(fields: [telegramKeyRecordId], references: [id])
+  discordChannel DiscordChannel @relation(fields: [discordChannelRecordId], references: [id])
+
+  @@unique([telegramKeyRecordId, discordChannelRecordId])
 }

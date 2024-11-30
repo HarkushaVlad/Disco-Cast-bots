@@ -1,4 +1,4 @@
-import { CachedDiscordChannel } from './channel.type';
+import { ChannelsLinkPayload, ExtendedChannelsLink } from './channel.type';
 
 export type MediaType = 'photo' | 'video' | 'animation' | 'document';
 
@@ -8,6 +8,5 @@ export interface PostPayload {
   text: string;
   medias: Medias;
   messageUrl: string;
-  channelType: string;
-  discordChannel: CachedDiscordChannel;
+  channelsLink: ChannelsLinkPayload;
 }

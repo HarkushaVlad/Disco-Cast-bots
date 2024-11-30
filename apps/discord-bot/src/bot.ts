@@ -22,7 +22,7 @@ import {
   DISCORD_GUILD_CHANNELS_REDIS_KEY,
   redisService,
 } from '../../../libs/shared/src/caching/redis.service';
-import { CachedDiscordChannel } from '../../../libs/shared/src/types/channel.type';
+import { ChannelsLinkPayload } from '../../../libs/shared/src/types/channel.type';
 import { safeJSONStringify } from '../../../libs/shared/src/utils/utils';
 
 const client = new Client({
@@ -70,49 +70,39 @@ const handleMessageCreate = async (message: Message) => {
   try {
     const cacheKey = `${DISCORD_GUILD_CHANNELS_REDIS_KEY}:${message.guild.id}`;
     const existingDiscordChannelsRecords = await redisService.get(cacheKey);
-    let cachedDiscordChannels: CachedDiscordChannel[];
+    let cachedLinks: ChannelsLinkPayload[];
 
     if (existingDiscordChannelsRecords) {
-      cachedDiscordChannels = JSON.parse(existingDiscordChannelsRecords);
+      cachedLinks = JSON.parse(existingDiscordChannelsRecords);
     } else {
-      console.log('ti loh');
-      cachedDiscordChannels = await prisma.discordChannel.findMany({
+      cachedLinks = await prisma.channelsLink.findMany({
         where: {
-          guild: {
-            discordGuildId: message.guild.id,
-          },
-          uniqueKeys: {
-            some: {},
+          discordChannel: {
+            guild: {
+              discordGuildId: message.guild.id,
+            },
           },
         },
         include: {
-          uniqueKeys: {
-            select: {
-              telegramChannelId: true,
+          discordChannel: {
+            include: {
+              guild: true,
             },
           },
-          guild: {
-            select: {
-              discordGuildId: true,
-            },
-          },
+          telegramKey: true,
         },
       });
 
-      await redisService.set(
-        cacheKey,
-        safeJSONStringify(cachedDiscordChannels),
-        60 * 60
-      );
+      await redisService.set(cacheKey, safeJSONStringify(cachedLinks), 60 * 60);
     }
 
-    const cachedDiscordChannel = cachedDiscordChannels.find(
-      (channel) => channel.discordChannelId === message.channel.id
+    const cachedLink = cachedLinks.find(
+      (link) => link.discordChannel.discordChannelId === message.channel.id
     );
 
-    if (!cachedDiscordChannel) return;
+    if (!cachedLink) return;
 
-    await discordPostService.sendPost(message, cachedDiscordChannel);
+    await discordPostService.sendPost(message, cachedLink);
   } catch (error) {
     console.error('Error handling messageCreate event:', error);
   }

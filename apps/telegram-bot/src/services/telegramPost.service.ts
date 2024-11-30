@@ -278,7 +278,7 @@ export class TelegramPostService {
 
     if (!text) return sign;
 
-    const signedText = `${text}\n\n${sign}`;
+    const signedText = `${text}${sign.length > 0 ? '\n\n' + sign : ''}`;
 
     if (signedText.length <= maxLength) return signedText;
 
@@ -323,6 +323,24 @@ export class TelegramPostService {
   }
 
   private getMessageSign(post: PostPayload): string {
-    return `<a href="${post.messageUrl}">Source</a> | ${post.channelType}`;
+    const signsArr: string[] = [];
+
+    if (post.channelsLink.withSource) {
+      signsArr.push(`<a href="${post.messageUrl}">Source</a>`);
+    }
+
+    if (post.channelsLink.withHashtag) {
+      signsArr.push(
+        `#${post.channelsLink.discordChannel.name.replace('-', '')}`
+      );
+    }
+
+    let signs = signsArr.join(' | ');
+
+    if (post.channelsLink.withMention) {
+      signs += `${signs.length > 0 ? '\n' : ''}<i>Powered by @discoCastBot</i>`;
+    }
+
+    return signs.length > 0 ? signs : '';
   }
 }

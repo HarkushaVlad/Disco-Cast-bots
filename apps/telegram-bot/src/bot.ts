@@ -22,7 +22,7 @@ import {
   DISCORD_GUILD_CHANNELS_REDIS_KEY,
   redisService,
 } from '../../../libs/shared/src/caching/redis.service';
-import { CachedDiscordChannel } from '../../../libs/shared/src/types/channel.type';
+import { ChannelsLinkPayload } from '../../../libs/shared/src/types/channel.type';
 import { safeJSONStringify } from '../../../libs/shared/src/utils/utils';
 
 let connection: Connection;
@@ -46,52 +46,51 @@ const setupMessageConsumption = (channel: Channel) => {
 
 const handlePostToTelegram = async (post: PostPayload) => {
   try {
-    const cacheKey = `${DISCORD_GUILD_CHANNELS_REDIS_KEY}:${post.discordChannel.guild.discordGuildId}`;
+    const discordGuildId =
+      post.channelsLink.discordChannel.guild.discordGuildId;
+    const cacheKey = `${DISCORD_GUILD_CHANNELS_REDIS_KEY}:${discordGuildId}`;
     const existingDiscordChannelsRecords = await redisService.get(cacheKey);
-    let cachedDiscordChannels: CachedDiscordChannel[];
+    let cachedLinks: ChannelsLinkPayload[];
 
     if (existingDiscordChannelsRecords) {
-      cachedDiscordChannels = JSON.parse(existingDiscordChannelsRecords);
+      cachedLinks = JSON.parse(existingDiscordChannelsRecords);
     } else {
-      cachedDiscordChannels = await prisma.discordChannel.findMany({
+      cachedLinks = await prisma.channelsLink.findMany({
         where: {
-          guildId: post.discordChannel.guildId,
-          uniqueKeys: { some: {} },
-        },
-        include: {
-          uniqueKeys: {
-            select: {
-              telegramChannelId: true,
+          discordChannel: {
+            guild: {
+              discordGuildId,
             },
           },
-          guild: true,
+        },
+        include: {
+          discordChannel: {
+            include: {
+              guild: true,
+            },
+          },
+          telegramKey: true,
         },
       });
 
-      await redisService.set(
-        cacheKey,
-        safeJSONStringify(cachedDiscordChannels),
-        60 * 60
-      );
+      await redisService.set(cacheKey, safeJSONStringify(cachedLinks), 60 * 60);
     }
 
-    const channelWithTgKeyInRecords = cachedDiscordChannels.find(
-      (channel) =>
-        channel.discordChannelId === post.discordChannel.discordChannelId
+    const linksForSpecificDiscordChannel = cachedLinks.filter(
+      (link) =>
+        link.discordChannelRecordId === post.channelsLink.discordChannelRecordId
     );
 
-    if (!channelWithTgKeyInRecords) {
-      console.error('No matching channel found in the cached records');
+    if (
+      !linksForSpecificDiscordChannel ||
+      !linksForSpecificDiscordChannel.length
+    ) {
+      console.error('No links found for the Discord channel');
       return;
     }
 
-    if (!channelWithTgKeyInRecords.uniqueKeys.length) {
-      console.error('No Telegram channel IDs for the Discord channel');
-      return;
-    }
-
-    const telegramChannelIds = channelWithTgKeyInRecords.uniqueKeys.map(
-      (key) => key.telegramChannelId
+    const telegramChannelIds = linksForSpecificDiscordChannel.map(
+      (key) => key.telegramKey.telegramChannelId
     );
 
     await telegramPostService.sendPost(post, telegramChannelIds);

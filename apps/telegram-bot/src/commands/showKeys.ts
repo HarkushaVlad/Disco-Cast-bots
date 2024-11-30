@@ -149,16 +149,20 @@ const handleKeyDeletion = async (
 ) => {
   const key = callbackData.split('_')[1];
   try {
-    const relatedDiscordGuildIds = await prisma.discordChannel.findMany({
+    const relatedGuildsInLinks = await prisma.channelsLink.findMany({
       where: {
-        uniqueKeys: {
-          some: { uniqueKey: key },
+        telegramKey: {
+          uniqueKey: key,
         },
       },
       select: {
-        guild: {
+        discordChannel: {
           select: {
-            discordGuildId: true,
+            guild: {
+              select: {
+                discordGuildId: true,
+              },
+            },
           },
         },
       },
@@ -168,9 +172,9 @@ const handleKeyDeletion = async (
 
     const discordGuildIds = [
       ...new Set(
-        relatedDiscordGuildIds.map(
-          (channel) =>
-            `${DISCORD_GUILD_CHANNELS_REDIS_KEY}:${channel.guild.discordGuildId}`
+        relatedGuildsInLinks.map(
+          (link) =>
+            `${DISCORD_GUILD_CHANNELS_REDIS_KEY}:${link.discordChannel.guild.discordGuildId}`
         )
       ),
     ];

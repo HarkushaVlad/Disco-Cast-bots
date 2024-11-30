@@ -1,14 +1,18 @@
-import { DiscordChannel, TelegramKey } from '@prisma/client';
+import {
+  ChannelsLink,
+  DiscordChannel,
+  DiscordGuild,
+  TelegramKey,
+} from '@prisma/client';
 
-export type DiscordChannelConnection = {
-  uniqueKeys: TelegramKey[];
-} & DiscordChannel;
+export type ExtendedChannelsLink = {
+  telegramKey: TelegramKey;
+  discordChannel: DiscordChannel;
+} & ChannelsLink;
 
-export type TelegramChannelConnection = {
-  DiscordChannels: DiscordChannel[];
-} & TelegramKey;
-
-export type CachedDiscordChannel = {
-  uniqueKeys: { telegramChannelId: bigint }[];
-  guild: { discordGuildId: string };
-} & DiscordChannel;
+export type ChannelsLinkPayload = {
+  telegramKey: TelegramKey;
+  discordChannel: {
+    guild: DiscordGuild;
+  } & DiscordChannel;
+} & ChannelsLink;

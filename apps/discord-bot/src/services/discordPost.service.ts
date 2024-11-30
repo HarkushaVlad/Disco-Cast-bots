@@ -7,7 +7,7 @@ import {
 import { Channel } from 'amqplib';
 import { convertDiscordMarkdownToHTML } from '../../../../libs/shared/src/utils/filters';
 import { sendPostToQueue } from '../../../../libs/shared/src/messaging/rabbitmq';
-import { CachedDiscordChannel } from '../../../../libs/shared/src/types/channel.type';
+import { ChannelsLinkPayload } from '../../../../libs/shared/src/types/channel.type';
 
 export class DiscordPostService {
   private readonly channel: Channel;
@@ -18,7 +18,7 @@ export class DiscordPostService {
 
   async sendPost(
     message: Message,
-    discordChannel: CachedDiscordChannel
+    channelsLink: ChannelsLinkPayload
   ): Promise<void> {
     let filteredText: string;
     if (message.reference) {
@@ -38,8 +38,7 @@ export class DiscordPostService {
       messageUrl: reference
         ? `https://discord.com/channels/${reference.guildId}/${reference.channelId}/${reference.messageId}`
         : message.url,
-      channelType: this.getChannelName(message),
-      discordChannel,
+      channelsLink,
     };
 
     if (!post.text && this.areMediasEmpty(post.medias)) {
@@ -54,7 +53,7 @@ export class DiscordPostService {
       );
     } catch (error) {
       console.error(
-        `Message from ${post.channelType} channel was not sent`,
+        `Message from ${post.channelsLink.discordChannel.name} channel was not sent`,
         error
       );
     }

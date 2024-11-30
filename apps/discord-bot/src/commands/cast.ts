@@ -98,29 +98,27 @@ export const castCommand = {
       discordChannelRecord = existingChannelRecord;
     }
 
-    const existingConnection: TelegramKey = await prisma.telegramKey.findFirst({
-      where: {
-        id: telegramKeyRecord.id,
-        discordChannels: {
-          some: { id: discordChannelRecord.id },
+    const existingTelegramKey: TelegramKey = await prisma.telegramKey.findFirst(
+      {
+        where: {
+          id: telegramKeyRecord.id,
+          channelLinks: {
+            some: { discordChannelRecordId: discordChannelRecord.id },
+          },
         },
-      },
-    });
+      }
+    );
 
-    if (existingConnection) {
+    if (existingTelegramKey) {
       await interaction.reply({
         content: `✅ <#${discordChannel.id}> is already linked to the Telegram channel (${telegramKeyRecord.description})`,
         ephemeral: true,
       });
     } else {
-      await prisma.discordChannel.update({
-        where: {
-          id: discordChannelRecord.id,
-        },
+      await prisma.channelsLink.create({
         data: {
-          uniqueKeys: {
-            connect: { id: telegramKeyRecord.id },
-          },
+          telegramKeyRecordId: telegramKeyRecord.id,
+          discordChannelRecordId: discordChannelRecord.id,
         },
       });
 

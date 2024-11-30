@@ -10,75 +10,80 @@ import {
   StringSelectMenuInteraction,
 } from 'discord.js';
 import { prisma } from '../../../telegram-bot/src/services/prismaClient';
-import { DiscordChannelConnection } from '../../../../libs/shared/src/types/channel.type';
 import {
+  MANAGE_COMMAND_CHANNEL_HASHTAG_BUTTON_ID,
   MANAGE_COMMAND_CHANNEL_OPTION,
+  MANAGE_COMMAND_CREDITS_BUTTON_ID,
   MANAGE_COMMAND_DELETE_BUTTON_ID,
   MANAGE_COMMAND_HIDE_BUTTON_ID,
   MANAGE_COMMAND_NAME,
   MANAGE_COMMAND_SELECT_CONNECTION_ID,
+  MANAGE_COMMAND_SOURCE_BUTTON_ID,
   MANAGE_COMMAND_UPDATE_BUTTON_ID,
 } from '../constants/discordConstants';
 import {
-  DISCORD_CHANNEL_WITH_TG_IDS_REDIS_KEY,
   DISCORD_GUILD_CHANNELS_REDIS_KEY,
   redisService,
 } from '../../../../libs/shared/src/caching/redis.service';
+import { ExtendedChannelsLink } from '../../../../libs/shared/src/types/channel.type';
 
-interface SelectConnectionValue {
+interface SelectLinkValue {
   discordChannelRecordId: string;
   telegramKeyRecordId: string;
 }
 
-const getSelectMenu = (connections: DiscordChannelConnection[]) => {
+const getSelectMenu = (connections: ExtendedChannelsLink[]) => {
   return new StringSelectMenuBuilder()
     .setCustomId(MANAGE_COMMAND_SELECT_CONNECTION_ID)
     .setPlaceholder('Select a connection to manage')
     .addOptions(
-      connections.flatMap((conn) =>
-        conn.uniqueKeys.map((key) => ({
-          label: `#${conn.name}`,
-          description: `Telegram: ${
-            key?.description.slice(0, 20) || 'No description'
-          }`,
+      connections.map((extendedLink) => {
+        return {
+          label: `#${extendedLink.discordChannel.name}`,
+          description: `Telegram: ${extendedLink.telegramKey.description.slice(
+            0,
+            20
+          )}`,
           value: JSON.stringify({
-            discordChannelRecordId: conn.id,
-            telegramKeyRecordId: key?.id,
+            discordChannelRecordId: extendedLink.discordChannel.id,
+            telegramKeyRecordId: extendedLink.telegramKey.id,
           }),
-        }))
-      )
+        };
+      })
     );
 };
 
-const getDiscordChannelConnections = async (
+const getExtendedChannelsLinks = async (
   discordGuildId: string,
   discordChannelId?: string
-): Promise<DiscordChannelConnection[]> => {
+): Promise<ExtendedChannelsLink[]> => {
   try {
     if (discordChannelId) {
-      return [
-        await prisma.discordChannel.findUnique({
-          where: {
+      return prisma.channelsLink.findMany({
+        where: {
+          discordChannel: {
             discordChannelId: discordChannelId,
-            uniqueKeys: {
-              some: {},
-            },
           },
-          include: { uniqueKeys: true },
-        }),
-      ];
+        },
+        include: {
+          telegramKey: true,
+          discordChannel: true,
+        },
+      });
     }
 
-    return prisma.discordChannel.findMany({
+    return prisma.channelsLink.findMany({
       where: {
-        guild: {
-          discordGuildId: discordGuildId,
-        },
-        uniqueKeys: {
-          some: {},
+        discordChannel: {
+          guild: {
+            discordGuildId: discordGuildId,
+          },
         },
       },
-      include: { uniqueKeys: true },
+      include: {
+        telegramKey: true,
+        discordChannel: true,
+      },
     });
   } catch (error) {
     console.error('Error retrieving connections:', error);
@@ -106,14 +111,14 @@ export const manageCommand = {
     )?.channel;
 
     try {
-      const connections = await getDiscordChannelConnections(
+      const connections = await getExtendedChannelsLinks(
         interaction.guild.id,
         channel?.id
       );
 
       if (!connections || connections.length === 0) {
         await interaction.reply({
-          content: `❌ No connections found for ${
+          content: `❌ No links found for ${
             channel ? `<#${channel.id}>` : 'this server'
           }. To add one, use the /cast command.`,
           ephemeral: true,
@@ -129,20 +134,20 @@ export const manageCommand = {
         );
 
       const buttonsRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder()
-          .setCustomId(MANAGE_COMMAND_HIDE_BUTTON_ID)
-          .setLabel('Cancel')
-          .setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder()
-          .setCustomId(
-            `${MANAGE_COMMAND_UPDATE_BUTTON_ID}&${channel ? channel.id : ''}`
-          )
-          .setLabel('Update')
-          .setStyle(ButtonStyle.Primary)
+        generateButton(
+          MANAGE_COMMAND_HIDE_BUTTON_ID,
+          'Cancel',
+          ButtonStyle.Secondary
+        ),
+        generateButton(
+          `${MANAGE_COMMAND_UPDATE_BUTTON_ID}&${channel ? channel.id : ''}`,
+          'Update',
+          ButtonStyle.Primary
+        )
       );
 
       await interaction.reply({
-        content: `Select a connection ${
+        content: `Select a link ${
           channel ? `for <#${channel.id}>` : ''
         } to view details:`,
         components: [menuRow, buttonsRow],
@@ -150,7 +155,7 @@ export const manageCommand = {
       });
     } catch (error) {
       await interaction.reply({
-        content: `❌ Error occurred while retrieving connections. Please try again later.`,
+        content: `❌ Error occurred while retrieving links. Please try again later.`,
         ephemeral: true,
       });
     }
@@ -160,7 +165,7 @@ export const manageCommand = {
     interaction: StringSelectMenuInteraction
   ): Promise<void> {
     try {
-      const selectedConnection: SelectConnectionValue = JSON.parse(
+      const selectedConnection: SelectLinkValue = JSON.parse(
         interaction.values[0]
       );
 
@@ -176,67 +181,52 @@ export const manageCommand = {
         isNaN(selectedTelegramKeyChannelRecordId)
       ) {
         await interaction.reply({
-          content: '❌ Invalid or deprecated connection',
+          content: '❌ Invalid or deprecated link',
           ephemeral: true,
         });
         return;
       }
 
-      const connection: DiscordChannelConnection =
-        await prisma.discordChannel.findFirst({
-          where: {
-            id: selectedDiscordChannelRecordId,
-            uniqueKeys: {
-              some: {
-                id: selectedTelegramKeyChannelRecordId,
-              },
-            },
-          },
-          include: {
-            uniqueKeys: true,
-          },
-        });
+      const link: ExtendedChannelsLink = await prisma.channelsLink.findFirst({
+        where: {
+          discordChannelRecordId: selectedDiscordChannelRecordId,
+          telegramKeyRecordId: selectedTelegramKeyChannelRecordId,
+        },
+        include: {
+          telegramKey: true,
+          discordChannel: true,
+        },
+      });
 
-      if (!connection) {
+      if (!link) {
         await interaction.reply({
-          content: '❌ Connection not found.',
+          content: '❌ Link not found.',
           ephemeral: true,
         });
         return;
       }
 
       const connectionDetails = `
-**Connection Details**:
-- Channel: <#${connection.discordChannelId}>
+**Link Details**:
+- Channel: <#${link.discordChannelRecordId}>
 - Telegram channel Description: ${
-        connection.uniqueKeys[0]?.description || 'No description available'
+        link.telegramKey.description || 'No description available'
       }
 - Telegram channel ID: ${
-        connection.uniqueKeys[0]?.telegramChannelId || 'No id available'
+        link.telegramKey.telegramChannelId || 'No id available'
       }
 `;
 
-      const buttonsRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder()
-          .setCustomId(MANAGE_COMMAND_HIDE_BUTTON_ID)
-          .setLabel('Cancel')
-          .setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder()
-          .setCustomId(
-            `${MANAGE_COMMAND_DELETE_BUTTON_ID}&${connection.discordChannelId}&${connection.uniqueKeys[0].id}`
-          )
-          .setLabel('Delete')
-          .setStyle(ButtonStyle.Danger)
-      );
+      const manageButtonsRow = getManageButtonsRow(link);
 
       await interaction.reply({
         content: connectionDetails,
         ephemeral: true,
-        components: [buttonsRow],
+        components: [manageButtonsRow],
       });
     } catch (error) {
       await interaction.reply({
-        content: '❌ Failed to fetch connection details.',
+        content: '❌ Failed to fetch link details.',
         ephemeral: true,
       });
       console.error(error);
@@ -254,17 +244,149 @@ export const manageCommand = {
         return;
       }
 
+      if (action === MANAGE_COMMAND_SOURCE_BUTTON_ID) {
+        await interaction.deferUpdate();
+
+        const convertedLinkId = Number(firstButtonArg);
+        const currentWithSource = secondButtonArg === 'true';
+
+        if (isNaN(convertedLinkId)) {
+          await interaction.editReply({
+            content: '❌ Invalid or deprecated link',
+            components: [],
+          });
+          return;
+        }
+
+        try {
+          const updatedLink = await prisma.channelsLink.update({
+            where: {
+              id: convertedLinkId,
+            },
+            data: {
+              withSource: !currentWithSource,
+            },
+            include: {
+              telegramKey: true,
+              discordChannel: true,
+            },
+          });
+
+          const manageButtonsRow = getManageButtonsRow(updatedLink);
+
+          await interaction.editReply({
+            content: interaction.message.content,
+            components: [manageButtonsRow],
+          });
+        } catch (error) {
+          console.error('Error updating withSource:', error);
+          await interaction.editReply({
+            content: '❌ Failed to update the link. Please try again later.',
+            components: [],
+          });
+        }
+        return;
+      }
+
+      if (action === MANAGE_COMMAND_CHANNEL_HASHTAG_BUTTON_ID) {
+        await interaction.deferUpdate();
+
+        const convertedLinkId = Number(firstButtonArg);
+        const currentWithHashtag = secondButtonArg === 'true';
+
+        if (isNaN(convertedLinkId)) {
+          await interaction.editReply({
+            content: '❌ Invalid or deprecated link',
+            components: [],
+          });
+          return;
+        }
+
+        try {
+          const updatedLink = await prisma.channelsLink.update({
+            where: {
+              id: convertedLinkId,
+            },
+            data: {
+              withHashtag: !currentWithHashtag,
+            },
+            include: {
+              telegramKey: true,
+              discordChannel: true,
+            },
+          });
+
+          const manageButtonsRow = getManageButtonsRow(updatedLink);
+
+          await interaction.editReply({
+            content: interaction.message.content,
+            components: [manageButtonsRow],
+          });
+        } catch (error) {
+          console.error('Error updating withHashtag:', error);
+          await interaction.editReply({
+            content: '❌ Failed to update the link. Please try again later.',
+            components: [],
+          });
+        }
+        return;
+      }
+
+      if (action === MANAGE_COMMAND_CREDITS_BUTTON_ID) {
+        await interaction.deferUpdate();
+
+        const convertedLinkId = Number(firstButtonArg);
+        const currentWithMention = secondButtonArg === 'true';
+
+        if (isNaN(convertedLinkId)) {
+          await interaction.editReply({
+            content: '❌ Invalid or deprecated link',
+            components: [],
+          });
+          return;
+        }
+
+        try {
+          const updatedLink = await prisma.channelsLink.update({
+            where: {
+              id: convertedLinkId,
+            },
+            data: {
+              withMention: !currentWithMention,
+            },
+            include: {
+              telegramKey: true,
+              discordChannel: true,
+            },
+          });
+
+          const manageButtonsRow = getManageButtonsRow(updatedLink);
+
+          await interaction.editReply({
+            content: interaction.message.content,
+            components: [manageButtonsRow],
+          });
+        } catch (error) {
+          console.error('Error updating withMention:', error);
+          await interaction.editReply({
+            content: '❌ Failed to update the link. Please try again later.',
+            components: [],
+          });
+        }
+        return;
+      }
+
       if (action === MANAGE_COMMAND_UPDATE_BUTTON_ID) {
         await interaction.deferUpdate();
 
-        const connections = await getDiscordChannelConnections(
+        const links = await getExtendedChannelsLinks(
           interaction.guild.id,
           firstButtonArg
         );
 
-        if (!connections || connections.length === 0) {
+        if (!links || links.length === 0) {
           await interaction.reply({
-            content: `❌ No connections found for ${
+            content: `❌ No links found for ${
               firstButtonArg ? `<#${firstButtonArg}>` : 'this server'
             }. To add one, use the /cast command.`,
             ephemeral: true,
@@ -272,69 +394,55 @@ export const manageCommand = {
           return;
         }
 
-        const selectMenu = getSelectMenu(connections);
+        const selectMenu = getSelectMenu(links);
 
         const menuRow =
           new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
             selectMenu
           );
 
-        const buttonsRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-          new ButtonBuilder()
-            .setCustomId(MANAGE_COMMAND_HIDE_BUTTON_ID)
-            .setLabel('Cancel')
-            .setStyle(ButtonStyle.Secondary),
-          new ButtonBuilder()
-            .setCustomId(
+        const menuButtonsRow =
+          new ActionRowBuilder<ButtonBuilder>().addComponents(
+            generateButton(
+              MANAGE_COMMAND_HIDE_BUTTON_ID,
+              'Cancel',
+              ButtonStyle.Secondary
+            ),
+            generateButton(
               `${MANAGE_COMMAND_UPDATE_BUTTON_ID}&${
                 firstButtonArg ? firstButtonArg : ''
-              }`
+              }`,
+              'Update',
+              ButtonStyle.Primary
             )
-            .setLabel('Update')
-            .setStyle(ButtonStyle.Primary)
-        );
+          );
 
         await interaction.editReply({
-          content: `Select a connection ${
+          content: `Select a link ${
             firstButtonArg ? `for <#${firstButtonArg}>` : ''
           } to view details:`,
-          components: [menuRow, buttonsRow],
+          components: [menuRow, menuButtonsRow],
         });
 
         return;
       }
 
-      if (
-        action === MANAGE_COMMAND_DELETE_BUTTON_ID &&
-        firstButtonArg &&
-        secondButtonArg
-      ) {
+      if (action === MANAGE_COMMAND_DELETE_BUTTON_ID && firstButtonArg) {
         await interaction.deferUpdate();
 
-        const convertedDiscordChannelId = firstButtonArg;
-        const convertedTelegramKeyId = Number(secondButtonArg);
+        const convertedLinkId = Number(firstButtonArg);
 
-        if (
-          isNaN(Number(convertedDiscordChannelId)) ||
-          isNaN(convertedTelegramKeyId)
-        ) {
+        if (isNaN(convertedLinkId)) {
           await interaction.editReply({
-            content: '❌ Invalid or deprecated connection',
+            content: '❌ Invalid or deprecated link',
             components: [],
           });
           return;
         }
 
-        await prisma.discordChannel.update({
+        await prisma.channelsLink.delete({
           where: {
-            discordChannelId: convertedDiscordChannelId,
-          },
-          data: {
-            uniqueKeys: {
-              disconnect: {
-                id: convertedTelegramKeyId,
-              },
-            },
+            id: convertedLinkId,
           },
         });
 
@@ -343,14 +451,15 @@ export const manageCommand = {
         );
 
         const buttonsRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-          new ButtonBuilder()
-            .setCustomId(MANAGE_COMMAND_HIDE_BUTTON_ID)
-            .setLabel('Hide')
-            .setStyle(ButtonStyle.Secondary)
+          generateButton(
+            `${MANAGE_COMMAND_HIDE_BUTTON_ID}`,
+            'Hide',
+            ButtonStyle.Secondary
+          )
         );
 
         await interaction.editReply({
-          content: `✅ Connection has been deleted.`,
+          content: `✅ Channels was unlink.`,
           components: [buttonsRow],
         });
 
@@ -359,11 +468,61 @@ export const manageCommand = {
 
       await interaction.deleteReply();
     } catch (error) {
+      console.error('Error handling manage button:', error);
       await interaction.editReply({
         content: '❌ An error occurred while processing your request.',
         components: [],
       });
-      console.error(error);
     }
   },
+};
+
+const generateButton = (
+  id: string,
+  label: string,
+  style: ButtonStyle,
+  isActive?: boolean
+) => {
+  const button = new ButtonBuilder()
+    .setCustomId(id)
+    .setLabel(label)
+    .setStyle(style);
+  if (isActive !== undefined) {
+    button.setLabel(`${isActive ? '✅' : '❌'} ${label}`);
+    button.setStyle(isActive ? ButtonStyle.Success : ButtonStyle.Secondary);
+  }
+  return button;
+};
+
+const getManageButtonsRow = (extendedLink: ExtendedChannelsLink) => {
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    generateButton(
+      MANAGE_COMMAND_HIDE_BUTTON_ID,
+      'Cancel',
+      ButtonStyle.Secondary
+    ),
+    generateButton(
+      `${MANAGE_COMMAND_SOURCE_BUTTON_ID}&${extendedLink.id}&${extendedLink.withSource}`,
+      'Show source',
+      ButtonStyle.Secondary,
+      extendedLink.withSource
+    ),
+    generateButton(
+      `${MANAGE_COMMAND_CHANNEL_HASHTAG_BUTTON_ID}&${extendedLink.id}&${extendedLink.withHashtag}`,
+      'Show channel hashtag',
+      ButtonStyle.Secondary,
+      extendedLink.withHashtag
+    ),
+    generateButton(
+      `${MANAGE_COMMAND_CREDITS_BUTTON_ID}&${extendedLink.id}&${extendedLink.withMention}`,
+      'Show credits',
+      ButtonStyle.Secondary,
+      extendedLink.withMention
+    ),
+    generateButton(
+      `${MANAGE_COMMAND_DELETE_BUTTON_ID}&${extendedLink.id}`,
+      'Delete',
+      ButtonStyle.Danger
+    )
+  );
 };
