@@ -1,4 +1,6 @@
 import { TelegramCommand } from '../types/command.types';
+import { redisService } from '../../../../libs/shared/src/caching/redis.service';
+import { TELEGRAM_SESSION_REDIS_ID } from '../constants/telegramConstants';
 
 export interface UserSession {
   userId: number;
@@ -7,56 +9,76 @@ export interface UserSession {
   data?: Record<string, any> | null;
 }
 
-const userSessions = new Map<number, UserSession>();
+const getSessionKey = (userId: number): string =>
+  `${TELEGRAM_SESSION_REDIS_ID}:${userId}`;
 
-export const getUserSession = (userId: number): UserSession | undefined => {
-  return userSessions.get(userId);
+export const getUserSession = async (
+  userId: number
+): Promise<UserSession | null> => {
+  const sessionKey = getSessionKey(userId);
+  const sessionData = await redisService.get(sessionKey);
+  return sessionData ? JSON.parse(sessionData) : null;
 };
 
-export const setUserSession = (
+export const setUserSession = async (
   userId: number,
   command: TelegramCommand | null,
   step: string | null = null,
-  data: Record<string, any> | null = null
-): UserSession => {
+  data: Record<string, any> | null = null,
+  ttlInSeconds: number = 3600
+): Promise<UserSession> => {
   const session: UserSession = { userId, command, step, data };
-  userSessions.set(userId, session);
+  const sessionKey = getSessionKey(userId);
+  await redisService.set(sessionKey, JSON.stringify(session), ttlInSeconds);
   return session;
 };
 
-export const updateUserSession = (
+export const updateUserSession = async (
   userId: number,
-  updatedFields: Partial<Omit<UserSession, 'userId'>>
-): UserSession | undefined => {
-  const existingSession = userSessions.get(userId);
+  updatedFields: Partial<Omit<UserSession, 'userId'>>,
+  ttlInSeconds: number = 3600
+): Promise<UserSession | null> => {
+  const existingSession = await getUserSession(userId);
   if (!existingSession) {
     console.warn(`User session for ID ${userId} not found.`);
-    return;
+    return null;
   }
 
   const updatedSession: UserSession = { ...existingSession, ...updatedFields };
-  userSessions.set(userId, updatedSession);
+  const sessionKey = getSessionKey(userId);
+  await redisService.set(
+    sessionKey,
+    JSON.stringify(updatedSession),
+    ttlInSeconds
+  );
   return updatedSession;
 };
 
-export const addUserSessionData = (
+export const addUserSessionData = async (
   userId: number,
-  newData: Record<string, any>
-): UserSession | undefined => {
-  const existingSession = userSessions.get(userId);
+  newData: Record<string, any>,
+  ttlInSeconds: number = 3600
+): Promise<UserSession | null> => {
+  const existingSession = await getUserSession(userId);
   if (!existingSession) {
     console.warn(`User session for ID ${userId} not found.`);
-    return;
+    return null;
   }
 
   const updatedSession: UserSession = {
     ...existingSession,
     data: { ...existingSession.data, ...newData },
   };
-  userSessions.set(userId, updatedSession);
+  const sessionKey = getSessionKey(userId);
+  await redisService.set(
+    sessionKey,
+    JSON.stringify(updatedSession),
+    ttlInSeconds
+  );
   return updatedSession;
 };
 
-export const clearUserSession = (userId: number): void => {
-  userSessions.delete(userId);
+export const clearUserSession = async (userId: number): Promise<void> => {
+  const sessionKey = getSessionKey(userId);
+  await redisService.delete(sessionKey);
 };

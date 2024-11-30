@@ -38,6 +38,4 @@ class RedisService {
 
 export const redisService = new RedisService();
 
-export const DISCORD_CHANNEL_WITH_TG_IDS_REDIS_KEY = 'discord_channel';
-
 export const DISCORD_GUILD_CHANNELS_REDIS_KEY = 'discord_guild_channels';

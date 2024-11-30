@@ -24,10 +24,10 @@ const isValidDescription = (description: string): boolean =>
   description.length >= 2 && description.length <= 40;
 
 export const createKeyCommand = async (ctx: Context) => {
-  const session = getUserSession(ctx.from.id);
+  const session = await getUserSession(ctx.from.id);
   deleteMessageFromDataIfExist(ctx, session);
 
-  setUserSession(
+  await setUserSession(
     ctx.from.id,
     CREATE_TELEGRAM_KEY_COMMAND,
     CREATE_TELEGRAM_KEY_GET_GROUP_ID_STEP
@@ -55,7 +55,7 @@ const addChannelIdStep = async (ctx: Context) => {
   )
     return;
 
-  updateUserSession(userId, {
+  await updateUserSession(userId, {
     step: CREATE_TELEGRAM_KEY_ADD_DESCRIPTION_STEP,
     data: { channelId },
   });
@@ -139,7 +139,7 @@ const addDescriptionStep = async (ctx: Context, session: UserSession) => {
   }
 
   await createKey(ctx, session.data.channelId, ctx.message.text);
-  clearUserSession(ctx.from.id);
+  await clearUserSession(ctx.from.id);
 };
 
 const createKey = async (

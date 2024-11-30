@@ -23,3 +23,5 @@ export const DELETE_CALLBACK_QUERY_DATA = 'delete';
 export const TELEGRAM_INTERACTION_KEYBOARD_MARKUP = Markup.keyboard([
   [CREATE_TELEGRAM_KEY_BUTTON_COMMAND, SHOW_TELEGRAM_KEYS_BUTTON_COMMAND],
 ]).resize().reply_markup;
+
+export const TELEGRAM_SESSION_REDIS_ID = 'telegram_session';

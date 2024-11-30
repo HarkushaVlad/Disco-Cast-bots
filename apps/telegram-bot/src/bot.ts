@@ -110,7 +110,7 @@ const handleUserAction = async (ctx: Context) => {
   }
 
   const userId = ctx.from.id;
-  const session = getUserSession(userId);
+  const session = await getUserSession(userId);
 
   if (!session || !session.command) return;
 

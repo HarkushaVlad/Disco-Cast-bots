@@ -24,10 +24,10 @@ const KEYS_PER_PAGE = 5;
 
 export const showKeysCommand = async (ctx: Context) => {
   const ownerId = ctx.from.id;
-  const session = getUserSession(ctx.from.id);
+  const session = await getUserSession(ctx.from.id);
 
   deleteMessageFromDataIfExist(ctx, session);
-  setUserSession(ownerId, SHOW_TELEGRAM_KEYS_COMMAND);
+  await setUserSession(ownerId, SHOW_TELEGRAM_KEYS_COMMAND);
 
   const totalKeys = await getTotalKeys(ownerId);
   if (totalKeys === 0) {
@@ -50,7 +50,7 @@ const displayKeysPage = async (
   const keyButtons = createKeyButtons(keys);
   const paginationButtons = createPaginationButtons(pageIndex, totalPages);
 
-  const session = addUserSessionData(ctx.from.id, { totalKeys });
+  const session = await addUserSessionData(ctx.from.id, { totalKeys });
 
   const text = `${pageIndex + 1}️⃣|${totalPages}️⃣ - Here are your keys:`;
   const inlineKeyboardMarkup = Markup.inlineKeyboard([
@@ -114,7 +114,7 @@ const updateMessage = async (
       parse_mode: 'HTML',
       reply_markup: replyMarkup,
     });
-    updateUserSession(ctx.from.id, {
+    await updateUserSession(ctx.from.id, {
       data: { ...session.data, messageId: sentMessage.message_id },
     });
   } catch (error) {
@@ -216,7 +216,7 @@ const displayKeyDetails = async (ctx: Context) => {
 
   await updateMessage(
     ctx,
-    getUserSession(ctx.from.id),
+    await getUserSession(ctx.from.id),
     text,
     inlineKeyboardMarkup
   );
