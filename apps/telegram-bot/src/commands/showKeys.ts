@@ -234,9 +234,13 @@ const getKeysPage = async (userId: number, skip = 0) =>
     orderBy: { description: 'asc' },
   });
 
-const getTotalKeys = async (ownerId: number) =>
+const getTotalKeys = async (userId: number) =>
   prisma.telegramKey.count({
-    where: { ownerId },
+    where: {
+      owner: {
+        userId,
+      },
+    },
   });
 
 export const handleShowKeysSteps = async (
