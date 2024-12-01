@@ -14,6 +14,7 @@ import {
   CREATE_TELEGRAM_KEY_ADD_DESCRIPTION_STEP,
   CREATE_TELEGRAM_KEY_COMMAND,
   CREATE_TELEGRAM_KEY_GET_GROUP_ID_STEP,
+  MAX_KEYS_PER_USER,
   REVOKE_CALLBACK_QUERY_DATA,
 } from '../constants/telegramConstants';
 import { deleteMessageFromDataIfExist } from '../services/telegramMessage.service';
@@ -22,25 +23,20 @@ import {
   redisService,
 } from '../../../../libs/shared/src/caching/redis.service';
 
+const removeReplyMarkupFromMessage = async (ctx: Context) => {
+  await ctx.telegram.editMessageReplyMarkup(
+    ctx.callbackQuery.message.chat.id,
+    ctx.callbackQuery.message.message_id,
+    undefined,
+    { inline_keyboard: [] }
+  );
+};
+
 const generateUniqueKey = (length: number): string =>
   randomBytes(length).toString('hex');
 
 const isValidDescription = (description: string): boolean =>
   description.length >= 2 && description.length <= 40;
-
-export const createKeyCommand = async (ctx: Context) => {
-  const session = await getUserSession(ctx.from.id);
-  deleteMessageFromDataIfExist(ctx, session);
-
-  await setUserSession(
-    ctx.from.id,
-    CREATE_TELEGRAM_KEY_COMMAND,
-    CREATE_TELEGRAM_KEY_GET_GROUP_ID_STEP
-  );
-  ctx.reply(
-    '↩️ Please forward a post from your channel or manually enter a channel ID.'
-  );
-};
 
 const addChannelIdStep = async (ctx: Context) => {
   const userId = ctx.from.id;
@@ -186,20 +182,6 @@ const createKey = async (
   }
 };
 
-export const handleCreateKeySteps = async (
-  ctx: Context,
-  session: UserSession
-) => {
-  switch (session.step) {
-    case CREATE_TELEGRAM_KEY_GET_GROUP_ID_STEP:
-      await addChannelIdStep(ctx);
-      break;
-    case CREATE_TELEGRAM_KEY_ADD_DESCRIPTION_STEP:
-      await addDescriptionStep(ctx, session);
-      break;
-  }
-};
-
 export const revokeExistingTelegramKey = async (ctx: Context) => {
   if (!('data' in ctx.callbackQuery)) return;
   const [callback, telegramUniqueKey] = ctx.callbackQuery.data.split('_');
@@ -258,11 +240,45 @@ export const revokeExistingTelegramKey = async (ctx: Context) => {
   await ctx.answerCbQuery('✅ Key successfully deleted.');
 };
 
-const removeReplyMarkupFromMessage = async (ctx: Context) => {
-  await ctx.telegram.editMessageReplyMarkup(
-    ctx.callbackQuery.message.chat.id,
-    ctx.callbackQuery.message.message_id,
-    undefined,
-    { inline_keyboard: [] }
+export const handleCreateKeySteps = async (
+  ctx: Context,
+  session: UserSession
+) => {
+  switch (session.step) {
+    case CREATE_TELEGRAM_KEY_GET_GROUP_ID_STEP:
+      await addChannelIdStep(ctx);
+      break;
+    case CREATE_TELEGRAM_KEY_ADD_DESCRIPTION_STEP:
+      await addDescriptionStep(ctx, session);
+      break;
+  }
+};
+
+export const createKeyCommand = async (ctx: Context) => {
+  const session = await getUserSession(ctx.from.id);
+  deleteMessageFromDataIfExist(ctx, session);
+
+  const keysCount = await prisma.telegramKey.count({
+    where: {
+      owner: {
+        userId: ctx.from.id,
+      },
+    },
+  });
+
+  if (keysCount >= MAX_KEYS_PER_USER) {
+    ctx.reply(
+      `❌ You can only have up to ${MAX_KEYS_PER_USER} keys.\nTo manage your keys use /showkeys`
+    );
+    return;
+  }
+
+  await setUserSession(
+    ctx.from.id,
+    CREATE_TELEGRAM_KEY_COMMAND,
+    CREATE_TELEGRAM_KEY_GET_GROUP_ID_STEP
+  );
+  ctx.reply(
+    '↩️ Please forward a post from your channel or manually enter a channel ID.'
   );
 };

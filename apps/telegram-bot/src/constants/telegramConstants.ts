@@ -1,5 +1,7 @@
 import { Markup } from 'telegraf';
 
+export const MAX_KEYS_PER_USER = 10;
+
 export const START_TELEGRAM_COMMAND = 'start';
 
 export const CREATE_TELEGRAM_KEY_COMMAND = 'createkey';
