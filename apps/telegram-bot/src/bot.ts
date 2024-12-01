@@ -7,13 +7,18 @@ import { Channel, Connection } from 'amqplib';
 import { setupCommands } from './commands';
 import { callbackQuery, message } from 'telegraf/filters';
 import { getUserSession } from './services/sessionManager';
-import { createKeyCommand, handleCreateKeySteps } from './commands/createKey';
+import {
+  createKeyCommand,
+  handleCreateKeySteps,
+  revokeExistingTelegramKey,
+} from './commands/createKey';
 import { handleShowKeysSteps, showKeysCommand } from './commands/showKeys';
 import { RABBITMQ_POST_QUEUE_NAME } from '../../../libs/shared/src/constants/constants';
 import {
   ALL_TELEGRAM_COMMANDS,
   CREATE_TELEGRAM_KEY_BUTTON_COMMAND,
   CREATE_TELEGRAM_KEY_COMMAND,
+  REVOKE_CALLBACK_QUERY_DATA,
   SHOW_TELEGRAM_KEYS_BUTTON_COMMAND,
   SHOW_TELEGRAM_KEYS_COMMAND,
 } from './constants/telegramConstants';
@@ -112,7 +117,12 @@ const handleUserAction = async (ctx: Context) => {
   const userId = ctx.from.id;
   const session = await getUserSession(userId);
 
-  if (!session || !session.command) return;
+  if (!session || !session.command) {
+    if (ctx.callbackQuery && 'data' in ctx.callbackQuery) {
+      await handleCallbackQuery(ctx);
+    }
+    return;
+  }
 
   await handleSessionSteps(ctx, session);
 };
@@ -136,6 +146,15 @@ const handleSessionSteps = async (ctx: Context, session: any) => {
       return handleCreateKeySteps(ctx, session);
     case SHOW_TELEGRAM_KEYS_COMMAND:
       return handleShowKeysSteps(ctx, session);
+  }
+};
+
+const handleCallbackQuery = async (ctx: Context) => {
+  if (!('data' in ctx.callbackQuery)) return;
+  switch (ctx.callbackQuery.data.split('_')[0]) {
+    case REVOKE_CALLBACK_QUERY_DATA:
+      await revokeExistingTelegramKey(ctx);
+      return;
   }
 };
 

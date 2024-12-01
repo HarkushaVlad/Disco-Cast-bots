@@ -1,4 +1,4 @@
-import { Context } from 'telegraf';
+import { Context, Markup } from 'telegraf';
 import {
   clearUserSession,
   getUserSession,
@@ -14,8 +14,13 @@ import {
   CREATE_TELEGRAM_KEY_ADD_DESCRIPTION_STEP,
   CREATE_TELEGRAM_KEY_COMMAND,
   CREATE_TELEGRAM_KEY_GET_GROUP_ID_STEP,
+  REVOKE_CALLBACK_QUERY_DATA,
 } from '../constants/telegramConstants';
 import { deleteMessageFromDataIfExist } from '../services/telegramMessage.service';
+import {
+  DISCORD_GUILD_CHANNELS_REDIS_KEY,
+  redisService,
+} from '../../../../libs/shared/src/caching/redis.service';
 
 const generateUniqueKey = (length: number): string =>
   randomBytes(length).toString('hex');
@@ -52,8 +57,10 @@ const addChannelIdStep = async (ctx: Context) => {
     !(await isValidChannel(ctx, channelId)) ||
     (await isKeyAlreadyExist(ctx, channelId)) ||
     !(await isUserAdmin(ctx, channelId))
-  )
+  ) {
+    await clearUserSession(userId);
     return;
+  }
 
   await updateUserSession(userId, {
     step: CREATE_TELEGRAM_KEY_ADD_DESCRIPTION_STEP,
@@ -94,15 +101,13 @@ const isValidChannel = async (
 
 const isUserAdmin = async (
   ctx: Context,
-  channelId: number
+  channelId: number | string
 ): Promise<boolean> => {
   try {
     const member = await ctx.telegram.getChatMember(channelId, ctx.from.id);
     if (member.status === 'administrator' || member.status === 'creator')
       return true;
-    ctx.reply(
-      '❌ You must be an admin of the specified chat to create a key for it.'
-    );
+    ctx.reply('❌ You must be an admin of the specified channel.');
   } catch (error) {
     if (error.code !== 400)
       console.error('Error while verifying admin status:', error);
@@ -116,11 +121,22 @@ const isKeyAlreadyExist = async (
 ): Promise<boolean> => {
   const existingKey = await prisma.telegramKey.findUnique({
     where: { telegramChannelId: channelId },
+    include: {
+      owner: true,
+    },
   });
   if (existingKey) {
     ctx.reply(
-      `ℹ A key for this channel already exists.\n🔑 <code>${existingKey.uniqueKey}</code>\n🗒 Description: <i>${existingKey.description}</i>`,
-      { parse_mode: 'HTML' }
+      `ℹ A key for this channel already exists.\n🔑 <code>${existingKey.uniqueKey}</code>\n🗒 Description: <i>${existingKey.description}</i>\n👤 Creator: @${existingKey.owner.username}`,
+      {
+        parse_mode: 'HTML',
+        reply_markup: Markup.inlineKeyboard([
+          Markup.button.callback(
+            '🗑 Revoke key',
+            `${REVOKE_CALLBACK_QUERY_DATA}_${existingKey.uniqueKey}`
+          ),
+        ]).reply_markup,
+      }
     );
     return true;
   }
@@ -182,4 +198,71 @@ export const handleCreateKeySteps = async (
       await addDescriptionStep(ctx, session);
       break;
   }
+};
+
+export const revokeExistingTelegramKey = async (ctx: Context) => {
+  if (!('data' in ctx.callbackQuery)) return;
+  const [callback, telegramUniqueKey] = ctx.callbackQuery.data.split('_');
+
+  const telegramKey = await prisma.telegramKey.findUnique({
+    where: {
+      uniqueKey: telegramUniqueKey,
+    },
+  });
+
+  if (!telegramKey) {
+    await removeReplyMarkupFromMessage(ctx);
+    await ctx.answerCbQuery('❌ Key is not exists.');
+    return;
+  }
+
+  if (callback !== REVOKE_CALLBACK_QUERY_DATA) return;
+  if (!(await isUserAdmin(ctx, telegramKey.telegramChannelId.toString()))) {
+    return;
+  }
+
+  const relatedGuildsInLinks = await prisma.channelsLink.findMany({
+    where: {
+      telegramKey: {
+        uniqueKey: telegramUniqueKey,
+      },
+    },
+    select: {
+      discordChannel: {
+        select: {
+          guild: {
+            select: {
+              discordGuildId: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  await prisma.telegramKey.delete({ where: { uniqueKey: telegramUniqueKey } });
+
+  const discordGuildIds = [
+    ...new Set(
+      relatedGuildsInLinks.map(
+        (link) =>
+          `${DISCORD_GUILD_CHANNELS_REDIS_KEY}:${link.discordChannel.guild.discordGuildId}`
+      )
+    ),
+  ];
+
+  await redisService.delete(...discordGuildIds);
+
+  await removeReplyMarkupFromMessage(ctx);
+
+  await ctx.answerCbQuery('✅ Key successfully deleted.');
+};
+
+const removeReplyMarkupFromMessage = async (ctx: Context) => {
+  await ctx.telegram.editMessageReplyMarkup(
+    ctx.callbackQuery.message.chat.id,
+    ctx.callbackQuery.message.message_id,
+    undefined,
+    { inline_keyboard: [] }
+  );
 };
