@@ -1,3 +1,5 @@
+export const MAX_LINKS_PER_CHANNEL = 5;
+
 export const CAST_COMMAND_NAME = 'cast';
 export const CAST_COMMAND_TELEGRAM_KEY_OPTION = 'telegramkey';
 export const CAST_COMMAND_CHANNEL_OPTION = 'channel';

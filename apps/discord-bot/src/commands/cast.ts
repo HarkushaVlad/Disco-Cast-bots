@@ -9,6 +9,7 @@ import {
   CAST_COMMAND_CHANNEL_OPTION,
   CAST_COMMAND_NAME,
   CAST_COMMAND_TELEGRAM_KEY_OPTION,
+  MAX_LINKS_PER_CHANNEL,
 } from '../constants/discordConstants';
 import {
   DISCORD_GUILD_CHANNELS_REDIS_KEY,
@@ -114,22 +115,39 @@ export const castCommand = {
         content: `✅ <#${discordChannel.id}> is already linked to the Telegram channel (${telegramKeyRecord.description})`,
         ephemeral: true,
       });
-    } else {
-      await prisma.channelsLink.create({
-        data: {
-          telegramKeyRecordId: telegramKeyRecord.id,
-          discordChannelRecordId: discordChannelRecord.id,
+      return;
+    }
+
+    const linkCount = await prisma.channelsLink.count({
+      where: {
+        discordChannel: {
+          discordChannelId: discordChannel.id,
         },
-      });
+      },
+    });
 
-      await redisService.delete(
-        `${DISCORD_GUILD_CHANNELS_REDIS_KEY}:${interaction.guild.id}`
-      );
-
+    if (linkCount >= MAX_LINKS_PER_CHANNEL) {
       await interaction.reply({
-        content: `✅ Successfully linked <#${discordChannel.id}> with the Telegram channel (${telegramKeyRecord.description})!`,
+        content: `❌ The channel <#${discordChannel.id}> has reached the maximum link limit of ${MAX_LINKS_PER_CHANNEL} Telegram channels`,
         ephemeral: true,
       });
+      return;
     }
+
+    await prisma.channelsLink.create({
+      data: {
+        telegramKeyRecordId: telegramKeyRecord.id,
+        discordChannelRecordId: discordChannelRecord.id,
+      },
+    });
+
+    await redisService.delete(
+      `${DISCORD_GUILD_CHANNELS_REDIS_KEY}:${interaction.guild.id}`
+    );
+
+    await interaction.reply({
+      content: `✅ Successfully linked <#${discordChannel.id}> with the Telegram channel (${telegramKeyRecord.description})!`,
+      ephemeral: true,
+    });
   },
 };
