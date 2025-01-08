@@ -3,7 +3,7 @@ import {
   CommandInteraction,
   SlashCommandBuilder,
 } from 'discord.js';
-import { prisma } from '../../../telegram-bot/src/services/prismaClient';
+import { prisma } from '../../../../libs/shared/src/prisma/prismaClient';
 import { DiscordChannel, TelegramKey } from '@prisma/client';
 import {
   CAST_COMMAND_CHANNEL_OPTION,

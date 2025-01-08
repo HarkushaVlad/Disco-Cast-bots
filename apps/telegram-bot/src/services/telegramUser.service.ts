@@ -1,4 +1,4 @@
-import { prisma } from './prismaClient';
+import { prisma } from '../../../../libs/shared/src/prisma/prismaClient';
 import { TelegramUser } from '@prisma/client';
 import { Context } from 'telegraf';
 

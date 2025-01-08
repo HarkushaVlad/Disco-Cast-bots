@@ -1,5 +1,5 @@
 import { Context, Markup } from 'telegraf';
-import { prisma } from '../services/prismaClient';
+import { prisma } from '../../../../libs/shared/src/prisma/prismaClient';
 import { TelegramKey } from '@prisma/client';
 import {
   addUserSessionData,

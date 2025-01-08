@@ -22,7 +22,7 @@ import {
   SHOW_TELEGRAM_KEYS_BUTTON_COMMAND,
   SHOW_TELEGRAM_KEYS_COMMAND,
 } from './constants/telegramConstants';
-import { prisma } from './services/prismaClient';
+import { prisma } from '../../../libs/shared/src/prisma/prismaClient';
 import {
   DISCORD_GUILD_CHANNELS_REDIS_KEY,
   redisService,

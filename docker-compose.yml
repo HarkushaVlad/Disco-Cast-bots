@@ -1,0 +1,93 @@
+services:
+  postgres:
+    image: postgres:latest
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - bot-network
+    ports:
+      - "${POSTGRES_PORT}:${POSTGRES_PORT}"
+
+  rabbitmq:
+    image: rabbitmq:management
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_DEFAULT_USER}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - bot-network
+    ports:
+      - "${RABBITMQ_PORT}:${RABBITMQ_PORT}"
+      - "${RABBITMQ_UI_PORT}:${RABBITMQ_UI_PORT}"
+
+  redis:
+    image: redis:latest
+    networks:
+      - bot-network
+    ports:
+      - "${REDIS_PORT}:${REDIS_PORT}"
+
+  prisma-deploy:
+    image: node:20
+    working_dir: /usr/src/app
+    command: npx prisma migrate deploy
+    volumes:
+      - ./prisma:/usr/src/app/prisma
+    depends_on:
+      - postgres
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+    networks:
+      - bot-network
+
+  discord-bot:
+    build:
+      context: .
+      dockerfile: apps/discord-bot/Dockerfile
+    environment:
+      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
+      - DISCORD_APPLICATION_ID=${DISCORD_APPLICATION_ID}
+      - DATABASE_URL=${DATABASE_URL}
+      - RABBITMQ_URL=${RABBITMQ_URL}
+      - REDIS_URL=${REDIS_URL}
+      - REDIS_PORT=${REDIS_PORT}
+    networks:
+      - bot-network
+    depends_on:
+      - postgres
+      - rabbitmq
+      - redis
+    ports:
+      - "${DISCORD_BOT_PORT}:${DISCORD_BOT_PORT}"
+
+  telegram-bot:
+    build:
+      context: .
+      dockerfile: apps/telegram-bot/Dockerfile
+    environment:
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - DATABASE_URL=${DATABASE_URL}
+      - RABBITMQ_URL=${RABBITMQ_URL}
+      - REDIS_URL=${REDIS_URL}
+      - REDIS_PORT=${REDIS_PORT}
+    networks:
+      - bot-network
+    depends_on:
+      - postgres
+      - rabbitmq
+      - redis
+    ports:
+      - "${TELEGRAM_BOT_PORT}:${TELEGRAM_BOT_PORT}"
+
+volumes:
+  postgres_data:
+  rabbitmq_data:
+
+networks:
+  bot-network:
+    driver: bridge

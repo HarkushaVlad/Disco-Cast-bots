@@ -17,7 +17,7 @@ import {
   ALL_MANAGE_COMMAND_BUTTON_IDS,
   MANAGE_COMMAND_SELECT_CONNECTION_ID,
 } from './constants/discordConstants';
-import { prisma } from '../../telegram-bot/src/services/prismaClient';
+import { prisma } from '../../../libs/shared/src/prisma/prismaClient';
 import {
   DISCORD_GUILD_CHANNELS_REDIS_KEY,
   redisService,

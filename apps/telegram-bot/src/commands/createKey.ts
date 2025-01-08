@@ -8,7 +8,7 @@ import {
 } from '../services/sessionManager';
 
 import { randomBytes } from 'crypto';
-import { prisma } from '../services/prismaClient';
+import { prisma } from '../../../../libs/shared/src/prisma/prismaClient';
 import { getOrCreateTelegramUser } from '../services/telegramUser.service';
 import {
   CREATE_TELEGRAM_KEY_ADD_DESCRIPTION_STEP,

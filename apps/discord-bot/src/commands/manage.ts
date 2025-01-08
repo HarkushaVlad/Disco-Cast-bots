@@ -9,7 +9,7 @@ import {
   StringSelectMenuBuilder,
   StringSelectMenuInteraction,
 } from 'discord.js';
-import { prisma } from '../../../telegram-bot/src/services/prismaClient';
+import { prisma } from '../../../../libs/shared/src/prisma/prismaClient';
 import {
   MANAGE_COMMAND_CHANNEL_HASHTAG_BUTTON_ID,
   MANAGE_COMMAND_CHANNEL_OPTION,
