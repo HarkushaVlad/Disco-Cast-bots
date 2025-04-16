@@ -1,10 +1,11 @@
 services:
   postgres:
     image: postgres:latest
+    container_name: postgres-disco-cast
     environment:
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_DB=${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
@@ -14,9 +15,10 @@ services:
 
   rabbitmq:
     image: rabbitmq:management
+    container_name: rabbitmq-disco-cast
     environment:
-      - RABBITMQ_DEFAULT_USER=${RABBITMQ_DEFAULT_USER}
-      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS}
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     networks:
@@ -27,13 +29,15 @@ services:
 
   redis:
     image: redis:latest
+    container_name: redis-disco-cast
     networks:
       - bot-network
     ports:
       - "${REDIS_PORT}:${REDIS_PORT}"
 
-  prisma-deploy:
+  prisma:
     image: node:20
+    container_name: prisma-deploy-disco-cast
     working_dir: /usr/src/app
     command: npx prisma migrate deploy
     volumes:
@@ -41,21 +45,21 @@ services:
     depends_on:
       - postgres
     environment:
-      - DATABASE_URL=${DATABASE_URL}
+      DATABASE_URL: ${DATABASE_URL}
     networks:
       - bot-network
 
   discord-bot:
+    container_name: discord-bot-disco-cast
     build:
       context: .
       dockerfile: apps/discord-bot/Dockerfile
     environment:
-      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
-      - DISCORD_APPLICATION_ID=${DISCORD_APPLICATION_ID}
-      - DATABASE_URL=${DATABASE_URL}
-      - RABBITMQ_URL=${RABBITMQ_URL}
-      - REDIS_URL=${REDIS_URL}
-      - REDIS_PORT=${REDIS_PORT}
+      DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN}
+      DISCORD_APPLICATION_ID: ${DISCORD_APPLICATION_ID}
+      DATABASE_URL: ${DATABASE_URL}
+      RABBITMQ_URL: ${RABBITMQ_URL}
+      REDIS_URL: ${REDIS_URL}
     networks:
       - bot-network
     depends_on:
@@ -66,15 +70,15 @@ services:
       - "${DISCORD_BOT_PORT}:${DISCORD_BOT_PORT}"
 
   telegram-bot:
+    container_name: telegram-bot-disco-cast
     build:
       context: .
       dockerfile: apps/telegram-bot/Dockerfile
     environment:
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-      - DATABASE_URL=${DATABASE_URL}
-      - RABBITMQ_URL=${RABBITMQ_URL}
-      - REDIS_URL=${REDIS_URL}
-      - REDIS_PORT=${REDIS_PORT}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      DATABASE_URL: ${DATABASE_URL}
+      RABBITMQ_URL: ${RABBITMQ_URL}
+      REDIS_URL: ${REDIS_URL}
     networks:
       - bot-network
     depends_on:
@@ -87,6 +91,7 @@ services:
 volumes:
   postgres_data:
   rabbitmq_data:
+  loki_data:
 
 networks:
   bot-network:

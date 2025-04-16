@@ -8,8 +8,10 @@ RUN npm install
 
 COPY . .
 
-RUN npm install -g nx
+RUN npx nx reset
+RUN rm -rf node_modules/.cache/nx
 
+RUN npm install -g nx
 RUN npx prisma generate
 
-CMD ["nx", "serve", "discord-bot", "--configuration", "production"]
+CMD ["nx", "serve", "discord-bot", "--configuration", "production", "--verbose"]

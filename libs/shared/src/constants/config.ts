@@ -8,4 +8,6 @@ export const config = {
   rabbitMQUrl: process.env['RABBITMQ_URL']!,
   redisUrl: process.env['REDIS_URL']!,
   redisPort: Number(process.env['REDIS_PORT']!),
+  logstashPort: Number(process.env['LOGSTASH_PORT']!),
+  logstashHost: process.env['LOGSTASH_HOST']!,
 } as const;
