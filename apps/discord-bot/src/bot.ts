@@ -9,7 +9,7 @@ import {
 import { DiscordPostService } from './services/discordPost.service';
 import { config } from '@disco-cast-bot/shared';
 import { connectToRabbitMQ } from '../../../libs/shared/src/messaging/rabbitmq';
-import { Channel, Connection } from 'amqplib';
+import { Channel, ChannelModel } from 'amqplib';
 import { commands } from './commands';
 import { deployCommands } from './commands/scripts/deployCommands';
 import { manageCommand } from './commands/manage';
@@ -33,7 +33,7 @@ const client = new Client({
   ],
 });
 
-let rabbitConnection: Connection;
+let rabbitChannelModel: ChannelModel;
 let rabbitChannel: Channel;
 let discordPostService: DiscordPostService;
 
@@ -48,8 +48,8 @@ const deployBotCommands = async () => {
 
 const initializeRabbitMQ = async () => {
   try {
-    if (!rabbitConnection || !rabbitChannel) {
-      ({ connection: rabbitConnection, channel: rabbitChannel } =
+    if (!rabbitChannelModel || !rabbitChannel) {
+      ({ channelModel: rabbitChannelModel, channel: rabbitChannel } =
         await connectToRabbitMQ());
       console.log('Connected to RabbitMQ');
     }
@@ -191,7 +191,7 @@ const closeConnections = async () => {
   console.log('Closing RabbitMQ connection...');
   try {
     if (rabbitChannel) await rabbitChannel.close();
-    if (rabbitConnection) await rabbitConnection.close();
+    if (rabbitChannelModel) await rabbitChannelModel.close();
     console.log('RabbitMQ connection closed.');
   } catch (error) {
     console.error('Error closing RabbitMQ connection', error);

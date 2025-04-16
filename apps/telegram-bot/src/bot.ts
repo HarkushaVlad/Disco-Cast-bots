@@ -3,7 +3,7 @@ import { config } from '@disco-cast-bot/shared';
 import { PostPayload } from '../../../libs/shared/src/types/post.types';
 import { TelegramPostService } from './services/telegramPost.service';
 import { connectToRabbitMQ } from '../../../libs/shared/src/messaging/rabbitmq';
-import { Channel, Connection } from 'amqplib';
+import { Channel, ChannelModel } from 'amqplib';
 import { setupCommands } from './commands';
 import { callbackQuery, message } from 'telegraf/filters';
 import { getUserSession } from './services/sessionManager';
@@ -30,8 +30,8 @@ import {
 import { ChannelsLinkPayload } from '../../../libs/shared/src/types/channel.type';
 import { safeJSONStringify } from '../../../libs/shared/src/utils/utils';
 
-let connection: Connection;
-let channel: Channel;
+let rabbitChannelModel: ChannelModel;
+let rabbitChannel: Channel;
 const bot = new Telegraf(config.telegramBotToken);
 const telegramPostService = new TelegramPostService(bot);
 
@@ -160,8 +160,9 @@ const handleCallbackQuery = async (ctx: Context) => {
 
 export const startBot = async () => {
   try {
-    ({ connection, channel } = await connectToRabbitMQ());
-    setupMessageConsumption(channel);
+    ({ channelModel: rabbitChannelModel, channel: rabbitChannel } =
+      await connectToRabbitMQ());
+    setupMessageConsumption(rabbitChannel);
 
     console.log('Flush all keys in Redis on start...');
     await redisService.flush();
@@ -185,8 +186,8 @@ export const startBot = async () => {
 const closeConnections = async () => {
   console.log('Closing RabbitMQ connection...');
   try {
-    if (channel) await channel.close();
-    if (connection) await connection.close();
+    if (rabbitChannel) await rabbitChannel.close();
+    if (rabbitChannelModel) await rabbitChannelModel.close();
     console.log('RabbitMQ connection closed.');
   } catch (error) {
     console.error('Error while closing RabbitMQ connections:', error);

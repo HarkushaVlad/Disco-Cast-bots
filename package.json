@@ -15,7 +15,7 @@
     "@swc-node/register": "~1.9.1",
     "@swc/core": "~1.5.7",
     "@swc/helpers": "~0.5.11",
-    "@types/amqplib": "^0.10.5",
+    "@types/amqplib": "^0.10.7",
     "@types/node": "^22.7.5",
     "esbuild": "^0.19.2",
     "eslint": "^9.8.0",
