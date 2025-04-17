@@ -72,7 +72,9 @@ const createKeyButtons = (keys: TelegramKey[]) =>
     .map((key) =>
       Markup.button.callback(
         `🔑 ${key.description}`,
-        `${KEY_CALLBACK_QUERY_DATA}_${key.uniqueKey}_${key.description}`
+        `${KEY_CALLBACK_QUERY_DATA}_${key.uniqueKey}_${
+          key.description
+        }_${!!key.aiQuery}`
       )
     )
     .map((btn) => [btn]);
@@ -228,7 +230,7 @@ const displayKeyDetails = async (ctx: Context) => {
   const data = ctx.callbackQuery.data.split('_');
   if (!data || data.length < 3) return;
 
-  const [, key, description] = data;
+  const [, key, description, hasAiQuery] = data;
   const text = `🔑 <code>${key}</code>\n🗒 Description: <i>${description}</i>`;
 
   const defaultUserKeyboardMarkup = [
@@ -238,7 +240,10 @@ const displayKeyDetails = async (ctx: Context) => {
 
   const aiWhitelistUserKeyboardMarkup = [
     Markup.button.callback('⬅', `${PAGE_CALLBACK_QUERY_DATA}_${0}`),
-    Markup.button.callback(`🤖`, `${AI_QUERY_PAGE_CALLBACK_QUERY_DATA}_${key}`),
+    Markup.button.callback(
+      `🤖${hasAiQuery === 'true' ? '✅' : '✍️'}`,
+      `${AI_QUERY_PAGE_CALLBACK_QUERY_DATA}_${key}`
+    ),
     Markup.button.callback('🗑', `${DELETE_CALLBACK_QUERY_DATA}_${key}`),
   ];
 
