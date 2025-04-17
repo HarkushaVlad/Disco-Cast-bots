@@ -3,22 +3,28 @@ import { prisma } from '../../../../libs/shared/src/prisma/prismaClient';
 import { TelegramKey } from '@prisma/client';
 import {
   addUserSessionData,
+  clearUserSession,
   getUserSession,
   setUserSession,
   updateUserSession,
   UserSession,
 } from '../services/sessionManager';
 import {
+  AI_QUERY_PAGE_CALLBACK_QUERY_DATA,
+  APPLYING_AI_QUERY_TEXT,
+  DELETE_AI_QUERY,
   DELETE_CALLBACK_QUERY_DATA,
   KEY_CALLBACK_QUERY_DATA,
   PAGE_CALLBACK_QUERY_DATA,
   SHOW_TELEGRAM_KEYS_COMMAND,
+  WAIT_FOR_AI_QUERY_TEXT_STEP,
 } from '../constants/telegramConstants';
 import { deleteMessageFromDataIfExist } from '../services/telegramMessage.service';
 import {
   DISCORD_GUILD_CHANNELS_REDIS_KEY,
   redisService,
 } from '../../../../libs/shared/src/caching/redis.service';
+import { config } from '@disco-cast-bot/shared';
 
 const KEYS_PER_PAGE = 5;
 
@@ -135,10 +141,25 @@ const handleButtonPress = async (ctx: Context, session: UserSession) => {
     const totalKeys = session.data.totalKeys || (await getTotalKeys(userId));
     const userKeys = await getKeysPage(userId, pageIndex * KEYS_PER_PAGE);
     await displayKeysPage(ctx, userKeys, pageIndex, totalKeys);
-  } else if (callbackData.startsWith(KEY_CALLBACK_QUERY_DATA + '_')) {
+    return;
+  }
+
+  if (callbackData.startsWith(KEY_CALLBACK_QUERY_DATA + '_')) {
     await displayKeyDetails(ctx);
-  } else if (callbackData.startsWith(DELETE_CALLBACK_QUERY_DATA + '_')) {
+    return;
+  }
+
+  if (callbackData.startsWith(DELETE_CALLBACK_QUERY_DATA + '_')) {
     await handleKeyDeletion(ctx, callbackData, userId);
+    return;
+  }
+
+  if (callbackData.startsWith(AI_QUERY_PAGE_CALLBACK_QUERY_DATA + '_')) {
+    await handleAiQueryApplying(ctx);
+  }
+
+  if (callbackData.startsWith(DELETE_AI_QUERY + '_')) {
+    await handleAiQueryDeleting(ctx, callbackData, userId);
   }
 };
 
@@ -209,10 +230,23 @@ const displayKeyDetails = async (ctx: Context) => {
 
   const [, key, description] = data;
   const text = `🔑 <code>${key}</code>\n🗒 Description: <i>${description}</i>`;
-  const inlineKeyboardMarkup = Markup.inlineKeyboard([
+
+  const defaultUserKeyboardMarkup = [
     Markup.button.callback('⬅', `${PAGE_CALLBACK_QUERY_DATA}_${0}`),
     Markup.button.callback('🗑', `${DELETE_CALLBACK_QUERY_DATA}_${key}`),
-  ]).reply_markup;
+  ];
+
+  const aiWhitelistUserKeyboardMarkup = [
+    Markup.button.callback('⬅', `${PAGE_CALLBACK_QUERY_DATA}_${0}`),
+    Markup.button.callback(`🤖`, `${AI_QUERY_PAGE_CALLBACK_QUERY_DATA}_${key}`),
+    Markup.button.callback('🗑', `${DELETE_CALLBACK_QUERY_DATA}_${key}`),
+  ];
+
+  const inlineKeyboardMarkup = Markup.inlineKeyboard(
+    config.aiWhitelist.includes(ctx.from.username)
+      ? aiWhitelistUserKeyboardMarkup
+      : defaultUserKeyboardMarkup
+  ).reply_markup;
 
   await updateMessage(
     ctx,
@@ -220,6 +254,139 @@ const displayKeyDetails = async (ctx: Context) => {
     text,
     inlineKeyboardMarkup
   );
+};
+
+const handleAiQueryApplying = async (ctx: Context) => {
+  if (!('data' in ctx.callbackQuery)) return;
+
+  const data = ctx.callbackQuery.data.split('_');
+  if (!data || data.length !== 2) return;
+
+  const [, key] = data;
+
+  const keyWithExistingAiQuery = await prisma.telegramKey.findUnique({
+    where: {
+      uniqueKey: key,
+      aiQuery: {
+        not: {
+          equals: '',
+        },
+      },
+      owner: {
+        userId: ctx.from.id,
+      },
+    },
+  });
+
+  if (keyWithExistingAiQuery) {
+    await showAiQueryEditPage(
+      ctx,
+      keyWithExistingAiQuery.uniqueKey,
+      keyWithExistingAiQuery.aiQuery
+    );
+  } else {
+    await updateMessage(
+      ctx,
+      await getUserSession(ctx.from.id),
+      'Please write your query, and AI will process it and handle all incoming messages from Discord accordingly.',
+      null
+    );
+    await setUserSession(
+      ctx.from.id,
+      APPLYING_AI_QUERY_TEXT,
+      WAIT_FOR_AI_QUERY_TEXT_STEP,
+      {
+        key,
+      }
+    );
+  }
+};
+
+const showAiQueryEditPage = async (
+  ctx: Context,
+  telegramKey: string,
+  aiQuery: string
+) => {
+  const session = await getUserSession(ctx.from.id);
+
+  await ctx.telegram.editMessageText(
+    ctx.chat.id,
+    session.data.messageId,
+    undefined,
+    `AI Query:\n${aiQuery}`,
+    {
+      parse_mode: 'HTML',
+      reply_markup: Markup.inlineKeyboard([
+        Markup.button.callback('⬅', `${PAGE_CALLBACK_QUERY_DATA}_${0}`),
+        Markup.button.callback('🗑 Clear', `${DELETE_AI_QUERY}_${telegramKey}`),
+      ]).reply_markup,
+    }
+  );
+};
+
+export const handleAiQueryText = async (ctx: Context, session: UserSession) => {
+  switch (session.step) {
+    case WAIT_FOR_AI_QUERY_TEXT_STEP:
+      if (
+        ('text' in ctx.message &&
+          ctx.message.text.toLowerCase() === 'cancel') ||
+        !session.data.key
+      ) {
+        await clearUserSession(ctx.from.id);
+        await showKeysCommand(ctx);
+        return;
+      }
+
+      if (
+        !('text' in ctx.message) ||
+        ctx.message.text.length < 10 ||
+        ctx.message.text.length > 200
+      ) {
+        ctx.reply(
+          '❌ Please provide a query text for AI between 10 and 200 characters, or type `cancel` to exit.'
+        );
+      } else {
+        await prisma.telegramKey.update({
+          where: {
+            uniqueKey: session.data.key,
+            owner: {
+              userId: ctx.from.id,
+            },
+          },
+          data: {
+            aiQuery: ctx.message.text,
+          },
+        });
+
+        await clearUserSession(ctx.from.id);
+
+        ctx.reply('✅ Query for AI has been successfully added.');
+
+        await showKeysCommand(ctx);
+      }
+  }
+};
+
+const handleAiQueryDeleting = async (
+  ctx: Context,
+  callbackData: string,
+  userId: number
+) => {
+  await prisma.telegramKey.update({
+    where: {
+      uniqueKey: callbackData.split('_')[1],
+      owner: {
+        userId,
+      },
+    },
+    data: {
+      aiQuery: '',
+    },
+  });
+
+  ctx.reply('✅ AI query has been successfully cleared.');
+
+  await showKeysCommand(ctx);
 };
 
 const getKeysPage = async (userId: number, skip = 0) =>

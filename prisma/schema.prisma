@@ -9,8 +9,8 @@ datasource db {
 
 model TelegramUser {
   id           Int           @id @default(autoincrement())
-  userId       Int           @unique
-  chatId       Int
+  userId       BigInt        @unique
+  chatId       BigInt
   username     String
   firstName    String?
   lastName     String?
@@ -28,6 +28,7 @@ model TelegramKey {
   ownerId           Int
   owner             TelegramUser   @relation(fields: [ownerId], references: [id])
   channelLinks      ChannelsLink[]
+  aiQuery           String?        @default("")
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
 }

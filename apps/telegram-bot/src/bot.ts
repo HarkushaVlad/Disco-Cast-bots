@@ -6,16 +6,21 @@ import { connectToRabbitMQ } from '../../../libs/shared/src/messaging/rabbitmq';
 import { Channel, ChannelModel } from 'amqplib';
 import { setupCommands } from './commands';
 import { callbackQuery, message } from 'telegraf/filters';
-import { getUserSession } from './services/sessionManager';
+import { getUserSession, UserSession } from './services/sessionManager';
 import {
   createKeyCommand,
   handleCreateKeySteps,
   revokeExistingTelegramKey,
 } from './commands/createKey';
-import { handleShowKeysSteps, showKeysCommand } from './commands/showKeys';
+import {
+  handleAiQueryText,
+  handleShowKeysSteps,
+  showKeysCommand,
+} from './commands/showKeys';
 import { RABBITMQ_POST_QUEUE_NAME } from '../../../libs/shared/src/constants/constants';
 import {
   ALL_TELEGRAM_COMMANDS,
+  APPLYING_AI_QUERY_TEXT,
   CREATE_TELEGRAM_KEY_BUTTON_COMMAND,
   CREATE_TELEGRAM_KEY_COMMAND,
   REVOKE_CALLBACK_QUERY_DATA,
@@ -27,8 +32,12 @@ import {
   DISCORD_GUILD_CHANNELS_REDIS_KEY,
   redisService,
 } from '../../../libs/shared/src/caching/redis.service';
-import { ChannelsLinkPayload } from '../../../libs/shared/src/types/channel.type';
+import {
+  ChannelsLinkPayload,
+  TelegramChannelForPost,
+} from '../../../libs/shared/src/types/channel.type';
 import { safeJSONStringify } from '../../../libs/shared/src/utils/utils';
+import { AiRequestService } from '../../../libs/shared/src/services/aiRequest.service';
 
 let rabbitChannelModel: ChannelModel;
 let rabbitChannel: Channel;
@@ -94,11 +103,49 @@ const handlePostToTelegram = async (post: PostPayload) => {
       return;
     }
 
-    const telegramChannelIds = linksForSpecificDiscordChannel.map(
-      (key) => key.telegramKey.telegramChannelId
+    const noAiChannels: TelegramChannelForPost[] = [];
+    const aiChannelsPromises: Promise<TelegramChannelForPost>[] = [];
+
+    const aiRequestService = new AiRequestService(
+      config.aiApiUrl,
+      config.aiApiKey,
+      config.aiModel,
+      config.aiTemperature,
+      config.aiConfigText
     );
 
-    await telegramPostService.sendPost(post, telegramChannelIds);
+    linksForSpecificDiscordChannel.forEach((link) => {
+      if (link.telegramKey.aiQuery) {
+        const promise = aiRequestService
+          .execRequest(post.text, link.telegramKey.aiQuery)
+          .then((aiText) => ({
+            telegramChannelId: link.telegramKey.telegramChannelId,
+            aiText,
+          }));
+
+        aiChannelsPromises.push(promise);
+      } else {
+        noAiChannels.push({
+          telegramChannelId: link.telegramKey.telegramChannelId,
+          aiText: null,
+        });
+      }
+    });
+
+    if (noAiChannels.length > 0) {
+      await telegramPostService.sendPost(post, noAiChannels);
+      console.log(
+        `Sent posts to ${noAiChannels.length} channels without AI processing`
+      );
+    }
+
+    if (aiChannelsPromises.length > 0) {
+      const aiChannels = await Promise.all(aiChannelsPromises);
+      await telegramPostService.sendPost(post, aiChannels);
+      console.log(
+        `Sent posts to ${aiChannels.length} channels with AI processing`
+      );
+    }
   } catch (error) {
     console.error('Failed to send post to Telegram:', error);
   }
@@ -117,7 +164,7 @@ const handleUserAction = async (ctx: Context) => {
   const userId = ctx.from.id;
   const session = await getUserSession(userId);
 
-  if (!session || !session.command) {
+  if (!session || !session.interaction) {
     if (ctx.callbackQuery && 'data' in ctx.callbackQuery) {
       await handleCallbackQuery(ctx);
     }
@@ -132,20 +179,25 @@ const handleButtonCommand = async (ctx: Context) => {
     switch (ctx.message.text) {
       case CREATE_TELEGRAM_KEY_BUTTON_COMMAND:
         await createKeyCommand(ctx);
-        return;
+        break;
       case SHOW_TELEGRAM_KEYS_BUTTON_COMMAND:
         await showKeysCommand(ctx);
-        return;
+        break;
     }
   }
 };
 
-const handleSessionSteps = async (ctx: Context, session: any) => {
-  switch (session.command) {
+const handleSessionSteps = async (ctx: Context, session: UserSession) => {
+  switch (session.interaction) {
     case CREATE_TELEGRAM_KEY_COMMAND:
-      return handleCreateKeySteps(ctx, session);
+      await handleCreateKeySteps(ctx, session);
+      break;
     case SHOW_TELEGRAM_KEYS_COMMAND:
-      return handleShowKeysSteps(ctx, session);
+      await handleShowKeysSteps(ctx, session);
+      break;
+    case APPLYING_AI_QUERY_TEXT:
+      await handleAiQueryText(ctx, session);
+      break;
   }
 };
 
@@ -154,7 +206,7 @@ const handleCallbackQuery = async (ctx: Context) => {
   switch (ctx.callbackQuery.data.split('_')[0]) {
     case REVOKE_CALLBACK_QUERY_DATA:
       await revokeExistingTelegramKey(ctx);
-      return;
+      break;
   }
 };
 

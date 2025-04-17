@@ -1,10 +1,13 @@
 import { TelegramCommand } from '../types/command.types';
 import { redisService } from '../../../../libs/shared/src/caching/redis.service';
 import { TELEGRAM_SESSION_REDIS_ID } from '../constants/telegramConstants';
+import { TelegramAction } from '../types/action.types';
+
+type Interaction = TelegramCommand | TelegramAction;
 
 export interface UserSession {
   userId: number;
-  command: TelegramCommand | null;
+  interaction: Interaction | null;
   step: string | null;
   data?: Record<string, any> | null;
 }
@@ -22,12 +25,12 @@ export const getUserSession = async (
 
 export const setUserSession = async (
   userId: number,
-  command: TelegramCommand | null,
+  interaction: Interaction | null,
   step: string | null = null,
   data: Record<string, any> | null = null,
   ttlInSeconds: number = 3600
 ): Promise<UserSession> => {
-  const session: UserSession = { userId, command, step, data };
+  const session: UserSession = { userId, interaction, step, data };
   const sessionKey = getSessionKey(userId);
   await redisService.set(sessionKey, JSON.stringify(session), ttlInSeconds);
   return session;

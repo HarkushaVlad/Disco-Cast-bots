@@ -16,3 +16,8 @@ export type ChannelsLinkPayload = {
     guild: DiscordGuild;
   } & DiscordChannel;
 } & ChannelsLink;
+
+export type TelegramChannelForPost = {
+  telegramChannelId: bigint;
+  aiText?: string;
+};

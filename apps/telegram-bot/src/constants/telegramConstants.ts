@@ -22,6 +22,13 @@ export const PAGE_CALLBACK_QUERY_DATA = 'page';
 export const KEY_CALLBACK_QUERY_DATA = 'key';
 export const DELETE_CALLBACK_QUERY_DATA = 'delete';
 export const REVOKE_CALLBACK_QUERY_DATA = 'revoke';
+export const AI_QUERY_PAGE_CALLBACK_QUERY_DATA = 'aiquerypage';
+export const DELETE_AI_QUERY = 'deleteaiquery';
+
+export const APPLYING_AI_QUERY_TEXT = 'applyingAiQueryText';
+export const WAIT_FOR_AI_QUERY_TEXT_STEP = 'waitAiQueryTextStep';
+
+export const ALL_TELEGRAM_ACTIONS = [APPLYING_AI_QUERY_TEXT];
 
 export const TELEGRAM_INTERACTION_KEYBOARD_MARKUP = Markup.keyboard([
   [CREATE_TELEGRAM_KEY_BUTTON_COMMAND, SHOW_TELEGRAM_KEYS_BUTTON_COMMAND],

@@ -11,6 +11,7 @@ import {
 } from '../../../../libs/shared/src/constants/constants';
 import { isNoLinks } from '../../../../libs/shared/src/utils/filters';
 import axios from 'axios';
+import { TelegramChannelForPost } from '../../../../libs/shared/src/types/channel.type';
 
 export class TelegramPostService {
   private readonly bot: TgBot;
@@ -19,11 +20,14 @@ export class TelegramPostService {
     this.bot = bot;
   }
 
-  async sendPost(post: PostPayload, telegramChannelIds: bigint[]) {
+  async sendPost(
+    post: PostPayload,
+    telegramChannelsForPost: TelegramChannelForPost[]
+  ) {
     if (this.hasMedia(post)) {
-      await this.sendMedias(post, telegramChannelIds);
+      await this.sendMedias(post, telegramChannelsForPost);
     } else {
-      await this.sendTextMessage(post, telegramChannelIds);
+      await this.sendTextMessages(post, telegramChannelsForPost);
     }
   }
 
@@ -31,32 +35,51 @@ export class TelegramPostService {
     return post && Object.values(post.medias).some((urls) => urls.length > 0);
   }
 
-  private async sendTextMessage(
+  private async sendTextMessages(
     post: PostPayload,
-    telegramChannelIds: bigint[],
+    telegramChannelsForPost: TelegramChannelForPost[],
     isTurnOffLinkPreview?: boolean,
     specificText?: string
   ) {
-    for (const channelId of telegramChannelIds) {
-      try {
-        await this.bot.telegram.sendMessage(
-          channelId.toString(),
-          this.getMessageText(post, telegramChannelIds, true, specificText),
-          this.getMessageOptions(post, isTurnOffLinkPreview)
-        );
-        console.log(
-          `Text message was successfully sent to channel ${channelId}\n`
-        );
-      } catch (error) {
-        console.error(
-          `Error sending text message to channel ${channelId}:`,
-          error
-        );
-      }
+    for (const telegramChannelForPost of telegramChannelsForPost) {
+      this.sendTextMessage(
+        post,
+        telegramChannelForPost,
+        isTurnOffLinkPreview,
+        specificText
+      );
     }
   }
 
-  private async sendMedias(post: PostPayload, telegramChannelIds: bigint[]) {
+  private async sendTextMessage(
+    post: PostPayload,
+    telegramChannelForPost: TelegramChannelForPost,
+    isTurnOffLinkPreview?: boolean,
+    specificText?: string
+  ) {
+    const channelId = telegramChannelForPost.telegramChannelId.toString();
+
+    try {
+      await this.bot.telegram.sendMessage(
+        channelId,
+        this.getMessageText(post, telegramChannelForPost, true, specificText),
+        this.getMessageOptions(post, isTurnOffLinkPreview)
+      );
+      console.log(
+        `Text message was successfully sent to channel ${channelId}\n`
+      );
+    } catch (error) {
+      console.error(
+        `Error sending text message to channel ${channelId}:`,
+        error
+      );
+    }
+  }
+
+  private async sendMedias(
+    post: PostPayload,
+    telegramChannelsForPost: TelegramChannelForPost[]
+  ) {
     const mediaToSend: { type: MediaType; urls: string[] }[] = [];
 
     SEND_ORDER_MEDIAS.forEach((mediaType) => {
@@ -70,7 +93,7 @@ export class TelegramPostService {
       const { type, urls } = media;
 
       try {
-        await this.sendMedia(type, urls, post, telegramChannelIds);
+        await this.sendMedia(type, urls, post, telegramChannelsForPost);
       } catch (error) {
         console.error(`Error sending ${type}:`, error);
       }
@@ -81,20 +104,20 @@ export class TelegramPostService {
     type: MediaType,
     urls: string[],
     post: PostPayload,
-    telegramChannelIds: bigint[]
+    telegramChannelsForPost: TelegramChannelForPost[]
   ) {
     switch (type) {
       case 'photo':
-        await this.sendPhotoMediaGroup(urls, post, telegramChannelIds);
+        await this.sendPhotoMediaGroup(urls, post, telegramChannelsForPost);
         break;
       case 'video':
-        await this.sendVideoMediaGroup(urls, post, telegramChannelIds);
+        await this.sendVideoMediaGroup(urls, post, telegramChannelsForPost);
         break;
       case 'animation':
-        await this.sendAnimationMediaGroup(urls, post, telegramChannelIds);
+        await this.sendAnimationMediaGroup(urls, post, telegramChannelsForPost);
         break;
       case 'document':
-        await this.sendDocumentMediaGroup(urls, post, telegramChannelIds);
+        await this.sendDocumentMediaGroup(urls, post, telegramChannelsForPost);
         break;
     }
   }
@@ -102,28 +125,28 @@ export class TelegramPostService {
   private async sendPhotoMediaGroup(
     urls: string[],
     post: PostPayload,
-    telegramChannelIds: bigint[]
+    telegramChannelsForPost: TelegramChannelForPost[]
   ) {
-    for (const channelId of telegramChannelIds) {
+    for (const telegramChannel of telegramChannelsForPost) {
       const photoMediaGroup: MediaGroup = urls.map((url, index) => ({
         type: 'photo',
         media: url,
         caption:
-          index === 0 ? this.getMessageText(post, telegramChannelIds) : null,
+          index === 0 ? this.getMessageText(post, telegramChannel) : null,
         ...this.getMessageOptions(post),
       }));
 
       try {
         await this.bot.telegram.sendMediaGroup(
-          channelId.toString(),
+          telegramChannel.telegramChannelId.toString(),
           photoMediaGroup
         );
         console.log(
-          `Photo group was successfully sent to channel ${channelId}`
+          `Photo group was successfully sent to channel ${telegramChannel.telegramChannelId}`
         );
       } catch (error) {
         console.error(
-          `Photo group was not sent to channel ${channelId}:`,
+          `Photo group was not sent to channel ${telegramChannel.telegramChannelId}:`,
           error
         );
       }
@@ -133,28 +156,28 @@ export class TelegramPostService {
   private async sendVideoMediaGroup(
     urls: string[],
     post: PostPayload,
-    telegramChannelIds: bigint[]
+    telegramChannelsForPost: TelegramChannelForPost[]
   ) {
-    for (const channelId of telegramChannelIds) {
+    for (const telegramChannel of telegramChannelsForPost) {
       const videoMediaGroup: MediaGroup = urls.map((url, index) => ({
         type: 'video',
         media: url,
         caption:
-          index === 0 ? this.getMessageText(post, telegramChannelIds) : null,
+          index === 0 ? this.getMessageText(post, telegramChannel) : null,
         ...this.getMessageOptions(post),
       }));
 
       try {
         await this.bot.telegram.sendMediaGroup(
-          channelId.toString(),
+          telegramChannel.telegramChannelId.toString(),
           videoMediaGroup
         );
         console.log(
-          `Video group was successfully sent to channel ${channelId}`
+          `Video group was successfully sent to channel ${telegramChannel.telegramChannelId}`
         );
       } catch (error) {
         console.error(
-          `Video group was not sent to channel ${channelId}:`,
+          `Video group was not sent to channel ${telegramChannel.telegramChannelId}:`,
           error
         );
       }
@@ -164,24 +187,28 @@ export class TelegramPostService {
   private async sendAnimationMediaGroup(
     urls: string[],
     post: PostPayload,
-    telegramChannelIds: bigint[]
+    telegramChannelsForPost: TelegramChannelForPost[]
   ) {
-    for (const channelId of telegramChannelIds) {
+    for (const telegramChannel of telegramChannelsForPost) {
       for (const [index, url] of urls.entries()) {
         try {
-          await this.bot.telegram.sendVideo(channelId.toString(), url, {
-            caption:
-              index === urls.length - 1
-                ? this.getMessageText(post, telegramChannelIds)
-                : null,
-            ...this.getMessageOptions(post),
-          });
+          await this.bot.telegram.sendVideo(
+            telegramChannel.telegramChannelId.toString(),
+            url,
+            {
+              caption:
+                index === urls.length - 1
+                  ? this.getMessageText(post, telegramChannel)
+                  : null,
+              ...this.getMessageOptions(post),
+            }
+          );
           console.log(
-            `Animation was successfully sent to channel ${channelId}`
+            `Animation was successfully sent to channel ${telegramChannel.telegramChannelId}`
           );
         } catch (error) {
           console.error(
-            `Error sending animation to channel ${channelId}:`,
+            `Error sending animation to channel ${telegramChannel.telegramChannelId}:`,
             error
           );
         }
@@ -192,7 +219,7 @@ export class TelegramPostService {
   private async sendDocumentMediaGroup(
     urls: string[],
     post: PostPayload,
-    telegramChannelIds: bigint[]
+    telegramChannelsForPost: TelegramChannelForPost[]
   ) {
     const fileBuffers = await this.downloadFilesToBuffer(urls);
 
@@ -202,7 +229,7 @@ export class TelegramPostService {
     });
     const inputFiles = this.buffersToInputFiles(fileBuffers, filenames);
 
-    for (const channelId of telegramChannelIds) {
+    for (const telegramChannel of telegramChannelsForPost) {
       const documentsMediaGroup: MediaGroup = inputFiles.map(
         (inputFile, index) => {
           return {
@@ -210,7 +237,7 @@ export class TelegramPostService {
             media: inputFile,
             caption:
               index === inputFiles.length - 1
-                ? this.getMessageText(post, telegramChannelIds)
+                ? this.getMessageText(post, telegramChannel)
                 : undefined,
             ...this.getMessageOptions(post),
           };
@@ -219,15 +246,15 @@ export class TelegramPostService {
 
       try {
         await this.bot.telegram.sendMediaGroup(
-          channelId.toString(),
+          telegramChannel.telegramChannelId.toString(),
           documentsMediaGroup
         );
         console.log(
-          `Document group was successfully sent to channel ${channelId}`
+          `Document group was successfully sent to channel ${telegramChannel.telegramChannelId}`
         );
       } catch (error) {
         console.error(
-          `Document group was not sent to channel ${channelId}:`,
+          `Document group was not sent to channel ${telegramChannel.telegramChannelId}:`,
           error
         );
       }
@@ -264,7 +291,7 @@ export class TelegramPostService {
 
   private getMessageText(
     post: PostPayload,
-    telegramChannelIds: bigint[],
+    telegramChannelForPost: TelegramChannelForPost,
     isNoMedia: boolean = false,
     specificText?: string
   ): string {
@@ -274,7 +301,11 @@ export class TelegramPostService {
       : MAX_CHARACTERS_TG_CAPTION;
     const arrowDownEmoji = '⬇️';
 
-    const text = specificText ? specificText : post.text;
+    const text = specificText
+      ? specificText
+      : telegramChannelForPost.aiText
+      ? telegramChannelForPost.aiText
+      : post.text;
 
     if (!text) return sign;
 
@@ -297,7 +328,7 @@ export class TelegramPostService {
       setTimeout(() => {
         this.sendTextMessage(
           post,
-          telegramChannelIds,
+          telegramChannelForPost,
           isNoLinks(remainingText),
           remainingText
         );

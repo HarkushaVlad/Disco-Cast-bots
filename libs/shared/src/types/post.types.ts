@@ -1,4 +1,4 @@
-import { ChannelsLinkPayload, ExtendedChannelsLink } from './channel.type';
+import { ChannelsLinkPayload } from './channel.type';
 
 export type MediaType = 'photo' | 'video' | 'animation' | 'document';
 
