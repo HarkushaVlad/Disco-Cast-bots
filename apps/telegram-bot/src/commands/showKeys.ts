@@ -360,6 +360,36 @@ export const handleAiQueryText = async (ctx: Context, session: UserSession) => {
 
         await clearUserSession(ctx.from.id);
 
+        const relatedGuildsInLinks = await prisma.channelsLink.findMany({
+          where: {
+            telegramKey: {
+              uniqueKey: session.data.key,
+            },
+          },
+          select: {
+            discordChannel: {
+              select: {
+                guild: {
+                  select: {
+                    discordGuildId: true,
+                  },
+                },
+              },
+            },
+          },
+        });
+
+        const discordGuildIds = [
+          ...new Set(
+            relatedGuildsInLinks.map(
+              (link) =>
+                `${DISCORD_GUILD_CHANNELS_REDIS_KEY}:${link.discordChannel.guild.discordGuildId}`
+            )
+          ),
+        ];
+
+        await redisService.delete(...discordGuildIds);
+
         ctx.reply('✅ Query for AI has been successfully added.');
 
         await showKeysCommand(ctx);
