@@ -1,0 +1,74 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Add SSH key
+        uses: webfactory/ssh-agent@v0.7.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Deploy to VPS
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} /bin/bash << 'EOF'
+          set -e
+          export GIT_SSH_COMMAND="ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"
+          REPO_DIR="$HOME/projects/Disco-Cast-bots"
+
+          mkdir -p "$REPO_DIR"
+          cd "$REPO_DIR"
+
+          if [ ! -d .git ]; then
+            git clone --branch main --single-branch https://github.com/HarkushaVlad/Disco-Cast-bots.git .
+          else
+            git fetch origin main
+            git reset --hard origin/main
+            git clean -fd
+          fi
+
+          cat > .env <<EOL
+          TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}
+          DISCORD_BOT_TOKEN=${{ secrets.DISCORD_BOT_TOKEN }}
+          DISCORD_APPLICATION_ID=${{ secrets.DISCORD_APPLICATION_ID }}
+
+          TELEGRAM_BOT_PORT=3002
+          DISCORD_BOT_PORT=3001
+
+          POSTGRES_PORT=5432
+          POSTGRES_USER=${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB=${{ secrets.POSTGRES_DB }}
+          DATABASE_URL=${{ secrets.DATABASE_URL }}
+
+          RABBITMQ_URL=${{ secrets.RABBITMQ_URL }}
+          RABBITMQ_PORT=5672
+          RABBITMQ_UI_PORT=15672
+          RABBITMQ_DEFAULT_USER=${{ secrets.RABBITMQ_DEFAULT_USER }}
+          RABBITMQ_DEFAULT_PASS=${{ secrets.RABBITMQ_DEFAULT_PASS }}
+
+          REDIS_URL=${{ secrets.REDIS_URL }}
+          REDIS_PORT=6379
+
+          AI_WHITELIST=${{ secrets.AI_WHITELIST }}
+
+          AI_API_URL=${{ secrets.AI_API_URL }}
+          AI_API_KEY=${{ secrets.AI_API_KEY }}
+          AI_MODEL=${{ secrets.AI_MODEL }}
+          AI_TEMPERATURE=1.2
+
+          AI_CONFIG_TEXT="${{ secrets.AI_CONFIG_TEXT }}
+          EOL
+
+          docker-compose down --remove-orphans
+          docker-compose up -d --build
+          EOF
