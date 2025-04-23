@@ -11,7 +11,7 @@ services:
     networks:
       - bot-network
     ports:
-      - "${POSTGRES_PORT}:${POSTGRES_PORT}"
+      - "127.0.0.1:${POSTGRES_PORT}:${POSTGRES_PORT}"
 
   rabbitmq:
     image: rabbitmq:management
@@ -24,8 +24,8 @@ services:
     networks:
       - bot-network
     ports:
-      - "${RABBITMQ_PORT}:${RABBITMQ_PORT}"
-      - "${RABBITMQ_UI_PORT}:${RABBITMQ_UI_PORT}"
+      - "127.0.0.1:${RABBITMQ_PORT}:${RABBITMQ_PORT}"
+      - "127.0.0.1:${RABBITMQ_UI_PORT}:${RABBITMQ_UI_PORT}"
 
   redis:
     image: redis:latest
@@ -33,7 +33,7 @@ services:
     networks:
       - bot-network
     ports:
-      - "${REDIS_PORT}:${REDIS_PORT}"
+      - "127.0.0.1:${REDIS_PORT}:${REDIS_PORT}"
 
   prisma:
     image: node:20
