@@ -22,9 +22,12 @@ export class DiscordPostService {
   ): Promise<void> {
     let filteredText: string;
     if (message.reference) {
-      filteredText = convertDiscordMarkdownToHTML(
-        await message.fetchReference()
-      );
+      try {
+        const refMessage = await message.fetchReference();
+        filteredText = convertDiscordMarkdownToHTML(refMessage);
+      } catch {
+        filteredText = convertDiscordMarkdownToHTML(message);
+      }
     } else {
       filteredText = convertDiscordMarkdownToHTML(message);
     }
