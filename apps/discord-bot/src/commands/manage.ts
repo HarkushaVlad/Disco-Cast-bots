@@ -208,7 +208,7 @@ export const manageCommand = {
 
       const connectionDetails = `
 **Link Details**:
-- Channel: <#${link.discordChannelRecordId}>
+- Channel: <#${link.discordChannel.discordChannelId}>
 - Telegram channel Description: ${
         link.telegramKey.description || 'No description available'
       }
