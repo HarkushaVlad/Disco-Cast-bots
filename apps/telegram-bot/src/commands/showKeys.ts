@@ -345,10 +345,10 @@ export const handleAiQueryText = async (ctx: Context, session: UserSession) => {
       if (
         !('text' in ctx.message) ||
         ctx.message.text.length < 10 ||
-        ctx.message.text.length > 200
+        ctx.message.text.length > 400
       ) {
         ctx.reply(
-          '❌ Please provide a query text for AI between 10 and 200 characters, or type `cancel` to exit.'
+          '❌ Please provide a query text for AI between 10 and 400 characters, or type `cancel` to exit.'
         );
       } else {
         await prisma.telegramKey.update({
