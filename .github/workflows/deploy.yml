@@ -66,7 +66,8 @@ jobs:
           AI_MODEL=${{ secrets.AI_MODEL }}
           AI_TEMPERATURE=1.2
 
-          AI_CONFIG_TEXT="${{ secrets.AI_CONFIG_TEXT }}
+          AI_QUERY_LENGTH=${{ secrets.AI_QUERY_LENGTH }}
+          AI_CONFIG_TEXT=${{ secrets.AI_CONFIG_TEXT }}
           EOL
 
           docker-compose down --remove-orphans
