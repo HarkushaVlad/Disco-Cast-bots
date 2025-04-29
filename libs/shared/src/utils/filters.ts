@@ -104,6 +104,9 @@ export const convertDiscordMarkdownToHTML = (message: Message): string => {
     // Remove custom emojis
     .replace(/:[a-zA-Z0-9_]+:/g, '')
 
+    // Remove angle brackets around URLs like <https://example.com>
+    .replace(/<((?:https?|ftp):\/\/[^ >]+)>/g, '$1')
+
     // Replace triple asterisks (***text***) with bold italic (<b><i>text</i></b>)
     .replace(/(?<!\\)\*\*\*(.*?)\*\*\*/g, '<b><i>$1</i></b>')
 
