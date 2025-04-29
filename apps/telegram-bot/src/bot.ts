@@ -107,7 +107,8 @@ const handlePostToTelegram = async (post: PostPayload) => {
     const aiChannelsPromises: Promise<TelegramChannelForPost>[] = [];
 
     const aiRequestService = new AiRequestService(
-      config.aiApiUrl,
+      config.aiApiKey,
+      config.aiModel,
       config.aiConfigText
     );
 

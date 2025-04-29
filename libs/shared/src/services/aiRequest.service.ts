@@ -1,52 +1,28 @@
-export class AiRequestService {
-  private readonly AI_API_URL: string;
-  private readonly AI_CONFIG_TEXT: string;
+import OpenAI from 'openai';
 
-  constructor(aiApiUrl: string, configText: string) {
-    this.AI_API_URL = aiApiUrl;
-    this.AI_CONFIG_TEXT = configText;
+export class AiRequestService {
+  private readonly client: OpenAI;
+  private readonly model: string;
+  private readonly configText: string;
+
+  constructor(apiKey: string, model: string, configText: string) {
+    this.client = new OpenAI({ apiKey });
+    this.model = model;
+    this.configText = configText;
   }
 
   async execRequest(sourceText: string, requestText: string): Promise<string> {
-    const prompt =
-      requestText && this.AI_CONFIG_TEXT
-        ? `${requestText}\n${this.AI_CONFIG_TEXT}`
-        : requestText || this.AI_CONFIG_TEXT;
+    const instructions =
+      requestText && this.configText
+        ? `${requestText}\n${this.configText}`
+        : requestText || this.configText;
 
-    try {
-      const response = await fetch(this.AI_API_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [{ text: prompt }, { text: sourceText }],
-            },
-          ],
-        }),
-      });
+    const response = await this.client.responses.create({
+      model: this.model,
+      instructions,
+      input: sourceText,
+    });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`AI API error (${response.status}): ${errorText}`);
-        return sourceText;
-      }
-
-      const data = await response.json();
-
-      const result = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-
-      if (!result) {
-        console.error('Unexpected AI response structure:', data);
-        return sourceText;
-      }
-
-      return result;
-    } catch (error) {
-      console.error('Error in AI request:', error);
-      return sourceText;
-    }
+    return (response.output_text || sourceText).trim();
   }
 }
