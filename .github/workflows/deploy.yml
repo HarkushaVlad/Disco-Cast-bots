@@ -62,9 +62,6 @@ jobs:
           AI_WHITELIST=${{ secrets.AI_WHITELIST }}
 
           AI_API_URL=${{ secrets.AI_API_URL }}
-          AI_API_KEY=${{ secrets.AI_API_KEY }}
-          AI_MODEL=${{ secrets.AI_MODEL }}
-          AI_TEMPERATURE=1.2
 
           AI_QUERY_LENGTH=${{ secrets.AI_QUERY_LENGTH }}
           AI_CONFIG_TEXT=${{ secrets.AI_CONFIG_TEXT }}

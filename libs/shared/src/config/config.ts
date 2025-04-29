@@ -12,9 +12,6 @@ export const config = {
   logstashHost: process.env['LOGSTASH_HOST']!,
   aiWhitelist: process.env['AI_WHITELIST']?.split(',') ?? [],
   aiApiUrl: process.env['AI_API_URL']!,
-  aiApiKey: process.env['AI_API_KEY']!,
-  aiModel: process.env['AI_MODEL']!,
-  aiTemperature: Number(process.env['AI_TEMPERATURE']!),
   aiQueryLength: Number(process.env['AI_QUERY_LENGTH']!),
   aiConfigText: process.env['AI_CONFIG_TEXT']!,
 } as const;

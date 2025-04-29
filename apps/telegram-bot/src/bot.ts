@@ -108,9 +108,6 @@ const handlePostToTelegram = async (post: PostPayload) => {
 
     const aiRequestService = new AiRequestService(
       config.aiApiUrl,
-      config.aiApiKey,
-      config.aiModel,
-      config.aiTemperature,
       config.aiConfigText
     );
 
