@@ -98,11 +98,10 @@ export const convertDiscordMarkdownToHTML = (message: Message): string => {
     // Strip angle brackets around links BEFORE escaping HTML
     .replace(/<((?:https?|ftp):\/\/[^ >]+)>/g, '$1');
 
+  rawText = convertTimestamps(rawText);
   rawText = escapeHtml(rawText);
 
   let text = convertAllMentions(rawText, mentions);
-
-  text = convertTimestamps(text);
 
   const convertedText = text
     // Remove custom emojis
