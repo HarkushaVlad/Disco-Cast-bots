@@ -94,7 +94,11 @@ const convertTimestamps = (text: string): string => {
 export const convertDiscordMarkdownToHTML = (message: Message): string => {
   const mentions = getAllMentions(message);
 
-  let rawText = escapeHtml(message.cleanContent);
+  let rawText = message.cleanContent
+    // Strip angle brackets around links BEFORE escaping HTML
+    .replace(/<((?:https?|ftp):\/\/[^ >]+)>/g, '$1');
+
+  rawText = escapeHtml(rawText);
 
   let text = convertAllMentions(rawText, mentions);
 
@@ -103,9 +107,6 @@ export const convertDiscordMarkdownToHTML = (message: Message): string => {
   const convertedText = text
     // Remove custom emojis
     .replace(/:[a-zA-Z0-9_]+:/g, '')
-
-    // Remove angle brackets around URLs like <https://example.com>
-    .replace(/<((?:https?|ftp):\/\/[^ >]+)>/g, '$1')
 
     // Replace triple asterisks (***text***) with bold italic (<b><i>text</i></b>)
     .replace(/(?<!\\)\*\*\*(.*?)\*\*\*/g, '<b><i>$1</i></b>')
