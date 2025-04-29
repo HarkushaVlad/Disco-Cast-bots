@@ -25,12 +25,80 @@ const convertAllMentions = (
   return text;
 };
 
+// Replace Discord timestamp tags like <t:TIMESTAMP:F> with actual date strings
+const convertTimestamps = (text: string): string => {
+  return text.replace(
+    /<t:(\d{10})(?::([a-zA-Z]))?>/g,
+    (_, timestampStr, format = 'f') => {
+      const timestamp = parseInt(timestampStr, 10) * 1000;
+      const date = new Date(timestamp);
+
+      const options: Intl.DateTimeFormatOptions = {
+        timeZone: 'UTC',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        weekday: 'long',
+      };
+
+      switch (format) {
+        case 't':
+          return date.toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+          });
+        case 'T':
+          return date.toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+            second: '2-digit',
+          });
+        case 'd':
+          return date.toLocaleDateString('en-GB');
+        case 'D':
+          return date.toLocaleDateString('en-US', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric',
+          });
+        case 'f':
+          return date.toLocaleString('en-US', {
+            ...options,
+            weekday: undefined,
+          });
+        case 'F':
+          return date.toLocaleString('en-US', options);
+        case 'R': {
+          const diff = Date.now() - timestamp;
+          const seconds = Math.floor(diff / 1000);
+          const minutes = Math.floor(seconds / 60);
+          const hours = Math.floor(minutes / 60);
+          const days = Math.floor(hours / 24);
+
+          if (Math.abs(days) >= 1)
+            return `${days} day(s) ${diff > 0 ? 'ago' : 'from now'}`;
+          if (Math.abs(hours) >= 1)
+            return `${hours} hour(s) ${diff > 0 ? 'ago' : 'from now'}`;
+          return `${minutes} minute(s) ${diff > 0 ? 'ago' : 'from now'}`;
+        }
+        default:
+          return date.toLocaleString();
+      }
+    }
+  );
+};
+
 export const convertDiscordMarkdownToHTML = (message: Message): string => {
   const mentions = getAllMentions(message);
 
   let rawText = escapeHtml(message.cleanContent);
 
   let text = convertAllMentions(rawText, mentions);
+
+  text = convertTimestamps(text);
 
   const convertedText = text
     // Remove custom emojis
